@@ -35,6 +35,7 @@ import Terminal from "./components/Terminal";
 import Dashboard from "./components/Dashboard";
 import TestingTab from "./components/TestingTab";
 import SearchReplacePanel from "./components/SearchReplacePanel";
+import VersionControl from "./components/VersionControl";
 import { DEFAULT_FILES } from "./data/templates";
 import { VirtualFile, SidebarTab, GalleryTemplate, TerminalTheme } from "./types";
 
@@ -394,6 +395,21 @@ export default function App() {
                   <span className="absolute left-0 top-1/3 bottom-1/3 w-[2px] bg-[var(--accent)] rounded-r"></span>
                 )}
               </button>
+
+              <button
+                onClick={() => setSidebarTab("git")}
+                className={`p-3 rounded-xl transition cursor-pointer relative ${
+                  sidebarTab === "git"
+                    ? `text-[var(--accent)] bg-[#1a1a1a]`
+                    : "text-zinc-500 hover:text-zinc-300 hover:bg-[#1a1a1a]/40"
+                }`}
+                title="Git & Version Control"
+              >
+                <Github className="h-5 w-5" />
+                {sidebarTab === "git" && (
+                  <span className="absolute left-0 top-1/3 bottom-1/3 w-[2px] bg-[var(--accent)] rounded-r"></span>
+                )}
+              </button>
             </div>
 
             <div className="flex flex-col items-center gap-4">
@@ -478,6 +494,14 @@ export default function App() {
                 onSelectFile={handleSelectFile}
                 onCodeChange={handleCodeChange}
                 onCreateFile={handleCreateFile}
+                accentColor={accentColor}
+              />
+            )}
+
+            {sidebarTab === "git" && (
+              <VersionControl
+                files={files}
+                onApplyFiles={handleApplyAIFiles}
                 accentColor={accentColor}
               />
             )}

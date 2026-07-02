@@ -14,7 +14,7 @@ export interface ChatMessage {
   isThinking?: boolean;
 }
 
-export type SidebarTab = "explorer" | "agent" | "gallery" | "settings" | "dashboard" | "testing" | "search";
+export type SidebarTab = "explorer" | "agent" | "gallery" | "settings" | "dashboard" | "testing" | "search" | "git";
 
 export type TerminalTheme = "neon" | "retro" | "monochromatic";
 
