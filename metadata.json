@@ -1,6 +1,8 @@
 {
-  "name": "MyCanvasLab",
-  "description": "A high-fidelity React/TypeScript Web IDE featuring a dynamic file explorer, a robust code editor with custom tabs, a real-time sandbox compiler with preview, and a server-side AI coding agent.",
+  "name": "MyCanvasLab AI",
+  "description": "An interactive playground and full-featured workspace with live preview, custom templates, and built-in AI assistant supporting Gemini and OpenAI.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

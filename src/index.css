@@ -1,1 +1,70 @@
 @import "tailwindcss";
+
+/* Custom theme variables */
+:root {
+  --background: #050705;
+  --foreground: #ecfdf5;
+  --accent: #1ae854;
+  --accent-text: #022c0e;
+  --border-color: rgba(26, 232, 84, 0.12);
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+}
+
+/* Custom Scrollbars in Green theme */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: #020402;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(26, 232, 84, 0.15);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(26, 232, 84, 0.35);
+}
+
+/* Pulse animation for running state */
+@keyframes soft-pulse {
+  0%, 100% { opacity: 1; filter: drop-shadow(0 0 4px rgba(26, 232, 84, 0.4)); }
+  50% { opacity: 0.5; filter: drop-shadow(0 0 1px rgba(26, 232, 84, 0.1)); }
+}
+
+.animate-pulse-soft {
+  animation: soft-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Custom Glowing Classes */
+.green-glow {
+  box-shadow: 0 0 15px rgba(26, 232, 84, 0.1);
+}
+
+.green-glow-strong {
+  box-shadow: 0 0 25px rgba(26, 232, 84, 0.25);
+}
+
+.bg-dark-trans-green {
+  background-color: rgba(2, 6, 3, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(26, 232, 84, 0.12);
+}
+
+.border-trans-green {
+  border-color: rgba(26, 232, 84, 0.12);
+}
+
+.bg-trans-green-header {
+  background-color: rgba(4, 8, 4, 0.9);
+}
+

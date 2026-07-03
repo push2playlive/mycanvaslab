@@ -1,224 +1,143 @@
 import React, { useState } from "react";
-import { Folder, File, Plus, Trash2, FolderPlus, ChevronDown, ChevronRight, FileCode, Check, X } from "lucide-react";
+import { FolderOpen, File, FileCode, Plus, Trash2, FileText } from "lucide-react";
 import { VirtualFile } from "../types";
 
 interface FileExplorerProps {
   files: VirtualFile[];
-  activeFile: string;
+  activeFilePath: string;
   onSelectFile: (path: string) => void;
   onCreateFile: (path: string) => void;
   onDeleteFile: (path: string) => void;
 }
 
-export default function FileExplorer({
+export const FileExplorer: React.FC<FileExplorerProps> = ({
   files,
-  activeFile,
+  activeFilePath,
   onSelectFile,
   onCreateFile,
   onDeleteFile,
-}: FileExplorerProps) {
-  const [isAdding, setIsAdding] = useState<"file" | "folder" | null>(null);
-  const [newItemName, setNewItemName] = useState("");
-  const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({
-    src: true,
-  });
+}) => {
+  const [newFileName, setNewFileName] = useState("");
+  const [showCreateInput, setShowCreateInput] = useState(false);
 
-  // Helper to build a nested tree from paths
-  const buildTree = (filesList: VirtualFile[]) => {
-    const root: any = { name: "root", type: "folder", children: {}, path: "" };
-
-    filesList.forEach((file) => {
-      const parts = file.path.split("/");
-      let current = root;
-
-      parts.forEach((part, index) => {
-        const isLast = index === parts.length - 1;
-        const currentPath = parts.slice(0, index + 1).join("/");
-
-        if (!current.children[part]) {
-          if (isLast) {
-            current.children[part] = {
-              name: part,
-              type: "file",
-              path: file.path,
-            };
-          } else {
-            current.children[part] = {
-              name: part,
-              type: "folder",
-              path: currentPath,
-              children: {},
-            };
-          }
-        }
-        current = current.children[part];
-      });
-    });
-
-    return root;
+  const handleCreateSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = newFileName.trim();
+    if (!trimmed) return;
+    onCreateFile(trimmed);
+    setNewFileName("");
+    setShowCreateInput(false);
   };
 
-  const tree = buildTree(files);
-
-  const toggleFolder = (path: string) => {
-    setExpandedFolders((prev) => ({ ...prev, [path]: !prev[path] }));
-  };
-
-  const handleCreate = () => {
-    if (!newItemName.trim()) return;
-    
-    // Normalize path
-    let targetPath = newItemName.trim();
-    if (isAdding === "folder") {
-      targetPath += "/placeholder.txt"; // Create dummy file inside folder to keep it in the virtual FS
+  const getFileIcon = (path: string) => {
+    const ext = path.split(".").pop()?.toLowerCase();
+    switch (ext) {
+      case "html":
+        return <FileCode className="h-4 w-4 text-orange-400" />;
+      case "css":
+        return <FileCode className="h-4 w-4 text-blue-400" />;
+      case "js":
+      case "ts":
+        return <FileCode className="h-4 w-4 text-yellow-400" />;
+      case "tsx":
+      case "jsx":
+        return <FileCode className="h-4 w-4 text-sky-400" />;
+      case "md":
+        return <FileText className="h-4 w-4 text-emerald-400" />;
+      default:
+        return <File className="h-4 w-4 text-zinc-400" />;
     }
-    
-    onCreateFile(targetPath);
-    setNewItemName("");
-    setIsAdding(null);
-  };
-
-  const getFileIcon = (fileName: string) => {
-    if (fileName.endsWith(".html")) return <FileCode className="h-4 w-4 text-[var(--accent)]" />;
-    if (fileName.endsWith(".css")) return <FileCode className="h-4 w-4 text-cyan-400" />;
-    if (fileName.endsWith(".tsx") || fileName.endsWith(".ts")) return <FileCode className="h-4 w-4 text-blue-400" />;
-    return <File className="h-4 w-4 text-zinc-400" />;
-  };
-
-  // Recursive tree renderer
-  const renderNode = (node: any, depth: number = 0) => {
-    if (node.type === "file") {
-      if (node.name === "placeholder.txt") return null; // Hide folder placeholder files
-      const isActive = activeFile === node.path;
-      return (
-        <div
-          key={node.path}
-          style={{ paddingLeft: `${depth * 12 + 8}px` }}
-          className={`group flex items-center justify-between py-1.5 pr-2 rounded-md cursor-pointer transition ${
-            isActive
-              ? "bg-[var(--accent-glow)] text-[var(--accent)] border-l-2 border-[var(--accent)]"
-              : "hover:bg-[#1a1a1a] text-zinc-400 hover:text-zinc-200"
-          }`}
-          onClick={() => onSelectFile(node.path)}
-        >
-          <div className="flex items-center gap-2 overflow-hidden">
-            {getFileIcon(node.name)}
-            <span className="text-xs truncate font-mono">{node.name}</span>
-          </div>
-          {node.path !== "src/App.tsx" && node.path !== "index.html" && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onDeleteFile(node.path);
-              }}
-              className="opacity-0 group-hover:opacity-100 p-1 hover:bg-zinc-800 rounded text-zinc-500 hover:text-red-400 transition"
-              title="Delete File"
-            >
-              <Trash2 className="h-3 w-3" />
-            </button>
-          )}
-        </div>
-      );
-    }
-
-    // Folder node
-    const isExpanded = expandedFolders[node.path] ?? false;
-    const folderChildren = Object.values(node.children);
-
-    return (
-      <div key={node.path || "root-folder"} className="space-y-0.5">
-        {node.name !== "root" && (
-          <div
-            style={{ paddingLeft: `${depth * 12 + 8}px` }}
-            className="group flex items-center justify-between py-1.5 pr-2 rounded-md cursor-pointer text-zinc-300 hover:bg-zinc-900 transition"
-            onClick={() => toggleFolder(node.path)}
-          >
-            <div className="flex items-center gap-1.5 overflow-hidden">
-              {isExpanded ? (
-                <ChevronDown className="h-3.5 w-3.5 text-zinc-500 flex-shrink-0" />
-              ) : (
-                <ChevronRight className="h-3.5 w-3.5 text-zinc-500 flex-shrink-0" />
-              )}
-              <Folder className="h-4 w-4 text-amber-500 flex-shrink-0" />
-              <span className="text-xs font-mono font-medium truncate">{node.name}</span>
-            </div>
-          </div>
-        )}
-
-        {(isExpanded || node.name === "root") && (
-          <div className="space-y-0.5">
-            {folderChildren.map((child: any) => renderNode(child, node.name === "root" ? 0 : depth + 1))}
-          </div>
-        )}
-      </div>
-    );
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#141414] border-r border-[#2a2a2a] text-zinc-300 select-none">
-      {/* Explorer Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-[#2a2a2a] bg-[#141414]">
-        <span className="text-xs font-bold tracking-widest text-zinc-500 uppercase">Project Tree</span>
-        <div className="flex items-center gap-1">
-          <button
-            onClick={() => setIsAdding("file")}
-            className="p-1.5 hover:bg-[#1a1a1a] rounded text-zinc-400 hover:text-[var(--accent)] transition cursor-pointer"
-            title="New File"
-          >
-            <Plus className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => setIsAdding("folder")}
-            className="p-1.5 hover:bg-[#1a1a1a] rounded text-zinc-400 hover:text-[var(--accent)] transition cursor-pointer"
-            title="New Folder"
-          >
-            <FolderPlus className="h-4 w-4" />
-          </button>
+    <div className="flex flex-col h-full bg-[#0d0d0e] border-r border-zinc-850 w-full">
+      {/* File Explorer Header */}
+      <div className="p-3 border-b border-zinc-850 flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <FolderOpen className="h-4 w-4 text-purple-400" />
+          <span className="text-xs font-black uppercase tracking-widest text-zinc-300">EXPLORER</span>
         </div>
+        <button
+          onClick={() => setShowCreateInput(!showCreateInput)}
+          className="p-1 hover:bg-zinc-800 rounded transition text-zinc-400 hover:text-zinc-100 cursor-pointer"
+          title="Create New File"
+        >
+          <Plus className="h-4 w-4" />
+        </button>
       </div>
 
-      {/* Adding Input Area */}
-      {isAdding && (
-        <div className="p-3 bg-[#1a1a1a] border-b border-[#2a2a2a] space-y-2">
-          <div className="text-[10px] text-zinc-500 uppercase font-semibold">
-            Creating new {isAdding}
-          </div>
-          <div className="flex items-center gap-1 bg-[#0d0d0d] border border-[#2a2a2a] rounded px-2 py-1">
-            <input
-              type="text"
-              autoFocus
-              value={newItemName}
-              onChange={(e) => setNewItemName(e.target.value)}
-              placeholder={isAdding === "file" ? "src/components/MyTimer.tsx" : "src/components"}
-              onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-              className="flex-1 bg-transparent text-xs text-zinc-100 outline-none font-mono py-0.5"
-            />
+      {/* New File Creation Input */}
+      {showCreateInput && (
+        <form onSubmit={handleCreateSubmit} className="p-2 border-b border-zinc-850 bg-zinc-950/40">
+          <input
+            type="text"
+            placeholder="e.g. style.css"
+            autoFocus
+            value={newFileName}
+            onChange={(e) => setNewFileName(e.target.value)}
+            className="w-full bg-[#0a0a0b] border border-zinc-800 rounded px-2 py-1 text-[11px] font-mono text-zinc-300 focus:outline-none focus:border-purple-500"
+          />
+          <div className="flex justify-end gap-1.5 mt-1.5">
             <button
-              onClick={handleCreate}
-              className="p-1 text-emerald-400 hover:bg-[#1a1a1a] rounded cursor-pointer"
-            >
-              <Check className="h-3.5 w-3.5" />
-            </button>
-            <button
+              type="button"
               onClick={() => {
-                setIsAdding(null);
-                setNewItemName("");
+                setNewFileName("");
+                setShowCreateInput(false);
               }}
-              className="p-1 text-zinc-500 hover:bg-[#1a1a1a] rounded cursor-pointer"
+              className="text-[10px] uppercase font-bold text-zinc-500 hover:text-zinc-300 px-1.5 py-0.5 rounded cursor-pointer"
             >
-              <X className="h-3.5 w-3.5" />
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="text-[10px] uppercase font-bold text-purple-400 hover:text-purple-300 px-1.5 py-0.5 rounded cursor-pointer"
+            >
+              Create
             </button>
           </div>
-          <p className="text-[10px] text-zinc-500 italic">
-            Press Enter or click check to confirm
-          </p>
-        </div>
+        </form>
       )}
 
-      {/* Explorer Tree */}
-      <div className="flex-1 overflow-y-auto p-2 space-y-1 scrollbar-thin">
-        {renderNode(tree)}
+      {/* File List */}
+      <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
+        {files.length === 0 ? (
+          <div className="p-4 text-center text-xs text-zinc-600 italic">No files in workspace. Click '+' to add one.</div>
+        ) : (
+          files.map((file) => {
+            const isActive = file.path === activeFilePath;
+            return (
+              <div
+                key={file.path}
+                className={`group flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-mono transition cursor-pointer ${
+                  isActive ? "bg-purple-950/20 border border-purple-900/30 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900/50 hover:text-zinc-200"
+                }`}
+                onClick={() => onSelectFile(file.path)}
+              >
+                <div className="flex items-center gap-2 truncate">
+                  {getFileIcon(file.path)}
+                  <span className="truncate">{file.path}</span>
+                </div>
+
+                {/* Prevent deleting 'index.html' so workspace doesn't crash */}
+                {file.path !== "index.html" && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (confirm(`Are you sure you want to delete ${file.path}?`)) {
+                        onDeleteFile(file.path);
+                      }
+                    }}
+                    className="opacity-0 group-hover:opacity-100 p-0.5 hover:text-red-400 text-zinc-600 transition cursor-pointer rounded hover:bg-zinc-800"
+                    title="Delete File"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+            );
+          })
+        )}
       </div>
     </div>
   );
-}
+};

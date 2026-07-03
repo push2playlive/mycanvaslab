@@ -1,416 +1,652 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Send, Cpu, Sparkles, AlertCircle, Play, ChevronRight, Check, Eye, GitPullRequest } from "lucide-react";
-import { VirtualFile, ChatMessage } from "../types";
-import CompareModal from "./CompareModal";
+import { Send, Cpu, Bot, Sparkles, AlertTriangle, Check, RefreshCw, Layers, Palette, Code, CheckCircle2, ArrowRight, Paintbrush } from "lucide-react";
+import { ChatMessage, VirtualFile, AIConfig } from "../types";
 
 interface AIChatProps {
   files: VirtualFile[];
-  onApplyFiles: (explanation: string, generatedFiles: VirtualFile[]) => void;
-  accentColor: string;
+  config: AIConfig;
+  onChangeConfig: (newConfig: AIConfig) => void;
+  onApplyFiles: (explanation: string, pendingFiles: VirtualFile[]) => void;
+  onOpenCompare: (msg: ChatMessage) => void;
 }
 
-export default function AIChat({ files, onApplyFiles, accentColor }: AIChatProps) {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: "welcome",
-      role: "assistant",
-      message: "Hello! I am your MyCanvasLab AI coding assistant. Select **Gemini Cloud** for real full-stack code synthesis, or **Ollama Local** to query an active localhost instance. \n\nType a prompt like *'Build a customizable todo list'* or *'Add some nice pulsing animations to the dashboard'* to write code directly to the center pane!",
-      timestamp: new Date().toLocaleTimeString(),
-    },
-  ]);
+export type StageId = "purpose" | "code" | "finisher";
+
+export const AIChat: React.FC<AIChatProps> = ({
+  files,
+  config,
+  onChangeConfig,
+  onApplyFiles,
+  onOpenCompare,
+}) => {
+  const [activeStage, setActiveStage] = useState<StageId>(() => {
+    return (localStorage.getItem("active_agent_stage") as StageId) || "purpose";
+  });
+
+  // Three separate chat histories for the 3 stages
+  const [purposeMessages, setPurposeMessages] = useState<ChatMessage[]>(() => {
+    const saved = localStorage.getItem("chat_messages_purpose");
+    return saved ? JSON.parse(saved) : [
+      {
+        id: "purpose-welcome",
+        role: "assistant",
+        message: "Hello! I am your Purpose Designer Agent. 🎨\n\nMy job is to talk to you and isolate the main purpose of your application, narrow down a beautiful color layout, and map out the core functions before writing any code. Let's talk! What would you like to build today?",
+        timestamp: new Date().toLocaleTimeString().split(" ")[0],
+      }
+    ];
+  });
+
+  const [codeMessages, setCodeMessages] = useState<ChatMessage[]>(() => {
+    const saved = localStorage.getItem("chat_messages_code");
+    return saved ? JSON.parse(saved) : [
+      {
+        id: "code-welcome",
+        role: "assistant",
+        message: "Code Writer Agent at your service! 💻\n\nOnce the Purpose Designer has refined your vision into a structured specification, I will take over to write complete, clean, and fully-functional code files in the workspace. Let me know what to write or use the brief below to build your core files!",
+        timestamp: new Date().toLocaleTimeString().split(" ")[0],
+      }
+    ];
+  });
+
+  const [finisherMessages, setFinisherMessages] = useState<ChatMessage[]>(() => {
+    const saved = localStorage.getItem("chat_messages_finisher");
+    return saved ? JSON.parse(saved) : [
+      {
+        id: "finisher-welcome",
+        role: "assistant",
+        message: "Greetings! I am your Finisher Agent. ✨\n\nI am here to polish, style, and perfect your application to make it look stunning. I'll add gorgeous entrance and hover animations, optimize typography, verify responsive layouts, and fine-tune spacing to make it flow effortlessly. Let me know what visual or operational details to refine!",
+        timestamp: new Date().toLocaleTimeString().split(" ")[0],
+      }
+    ];
+  });
+
+  // Structured specification wizard state (helps isolate layout & functions)
+  const [specPurpose, setSpecPurpose] = useState(() => localStorage.getItem("spec_purpose") || "");
+  const [specColors, setSpecColors] = useState(() => localStorage.getItem("spec_colors") || "");
+  const [specFunctions, setSpecFunctions] = useState(() => localStorage.getItem("spec_functions") || "");
+
   const [inputValue, setInputValue] = useState("");
-  const [aiMode, setAiMode] = useState<"gemini" | "ollama">("gemini");
-  const [ollamaUrl, setOllamaUrl] = useState("http://localhost:11434/api/generate");
-  const [ollamaModel, setOllamaModel] = useState("llama3");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
-  // Staged pending changes compare modal state
-  const [activeCompareMessage, setActiveCompareMessage] = useState<ChatMessage | null>(null);
-  
+
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
-  // Auto scroll chat to bottom
+  // Sync state to localStorage
+  useEffect(() => {
+    localStorage.setItem("active_agent_stage", activeStage);
+  }, [activeStage]);
+
+  useEffect(() => {
+    localStorage.setItem("chat_messages_purpose", JSON.stringify(purposeMessages));
+  }, [purposeMessages]);
+
+  useEffect(() => {
+    localStorage.setItem("chat_messages_code", JSON.stringify(codeMessages));
+  }, [codeMessages]);
+
+  useEffect(() => {
+    localStorage.setItem("chat_messages_finisher", JSON.stringify(finisherMessages));
+  }, [finisherMessages]);
+
+  useEffect(() => {
+    localStorage.setItem("spec_purpose", specPurpose);
+    localStorage.setItem("spec_colors", specColors);
+    localStorage.setItem("spec_functions", specFunctions);
+  }, [specPurpose, specColors, specFunctions]);
+
+  // Auto scroll
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, loading]);
+  }, [activeStage, purposeMessages, codeMessages, finisherMessages, loading]);
 
-  const handleOpenCompare = (msg: ChatMessage) => {
-    setActiveCompareMessage(msg);
-  };
+  const activeMessages = 
+    activeStage === "purpose" ? purposeMessages :
+    activeStage === "code" ? codeMessages : finisherMessages;
 
-  const handleApplyPending = (msg: ChatMessage) => {
-    if (msg.pendingFiles) {
-      onApplyFiles(msg.message, msg.pendingFiles);
-      
-      // Mark this message as applied in the state
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === msg.id
-            ? { ...m, applied: true, filesChanged: msg.pendingFiles?.map((f) => f.path) }
-            : m
-        )
-      );
+  const setActiveMessages = (updater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => {
+    if (activeStage === "purpose") {
+      setPurposeMessages(updater);
+    } else if (activeStage === "code") {
+      setCodeMessages(updater);
+    } else {
+      setFinisherMessages(updater);
     }
   };
 
-  const handleApplyFromModal = () => {
-    if (activeCompareMessage) {
-      handleApplyPending(activeCompareMessage);
-      setActiveCompareMessage(null);
+  const handleSendMessage = async (e?: React.FormEvent, customText?: string) => {
+    if (e) e.preventDefault();
+    const promptText = (customText || inputValue).trim();
+    if (!promptText || loading) return;
+
+    if (!customText) {
+      setInputValue("");
     }
-  };
-
-  const handleSendMessage = async () => {
-    if (!inputValue.trim() || loading) return;
-
-    const userPrompt = inputValue.trim();
-    setInputValue("");
     setError(null);
 
-    // Append user message
+    const time = new Date().toLocaleTimeString().split(" ")[0];
     const userMsg: ChatMessage = {
       id: Math.random().toString(),
       role: "user",
-      message: userPrompt,
-      timestamp: new Date().toLocaleTimeString(),
+      message: promptText,
+      timestamp: time,
     };
-    setMessages((prev) => [...prev, userMsg]);
+
+    const updatedMessages = [...activeMessages, userMsg];
+    setActiveMessages(updatedMessages);
     setLoading(true);
 
-    if (aiMode === "gemini") {
-      try {
-        const response = await fetch("/api/ai/generate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            prompt: userPrompt,
-            files: files,
-            chatHistory: messages.map((m) => ({
-              role: m.role === "user" ? "user" : "model",
-              message: m.message,
-            })),
-          }),
-        });
+    try {
+      // Build stage-specific system directives to guide the prompt logic
+      let directive = "";
+      if (activeStage === "purpose") {
+        directive = `[STAGES DIRECTIVE - ROLE: PURPOSE DESIGNER AGENT]
+Your goal is to converse with the user, find out their core purpose, desired colors/layout, and main functions.
+Do not write complete code yet. Instead, discuss options, propose beautiful visual specifications, and structure their ideas.
+Once they are happy, output a structured Markdown brief of the design specs.
+Current Specs collected so far:
+- Main Purpose: ${specPurpose || "Not set yet"}
+- Color Layout: ${specColors || "Not set yet"}
+- Core Functions: ${specFunctions || "Not set yet"}
 
-        const contentType = response.headers.get("content-type");
-        if (!response.ok) {
-          let errorMessage = "Failed to communicate with the server side Gemini API.";
-          if (contentType && contentType.includes("application/json")) {
-            const errData = await response.json();
-            errorMessage = errData.error || errorMessage;
-          } else {
-            errorMessage = `Server returned an error (${response.status}): ${response.statusText || "Communication Failure"}`;
-          }
-          throw new Error(errorMessage);
-        }
-
-        if (!contentType || !contentType.includes("application/json")) {
-          throw new Error(`Invalid response format from server. Expected JSON, received: ${contentType || "unknown"}`);
-        }
-
-        const data = await response.json();
-
-        const hasFiles = data.files && data.files.length > 0;
-        const assistantMsg: ChatMessage = {
-          id: Math.random().toString(),
-          role: "assistant",
-          message: data.explanation,
-          timestamp: new Date().toLocaleTimeString(),
-          pendingFiles: hasFiles ? data.files : undefined,
-          applied: false,
-        };
-
-        setMessages((prev) => [...prev, assistantMsg]);
-
-      } catch (err: any) {
-        console.error("Gemini Assistant Error:", err);
-        setError(err.message || "An unexpected error occurred.");
-      } finally {
-        setLoading(false);
+Encourage the user to refine these specs.`;
+      } else if (activeStage === "code") {
+        directive = `[STAGES DIRECTIVE - ROLE: CODE WRITER AGENT]
+Your goal is to write fully complete, highly polished code for the virtual files.
+Do NOT output placeholders or "// rest of code goes here".
+Create or modify index.html, style.css, or any required script files.
+Focus on building the complete requested architecture based on the specifications.
+Specifications brief:
+- Main Purpose: ${specPurpose || "General Prototype App"}
+- Color Layout: ${specColors || "Green #1ae854 and dark transparent green"}
+- Core Functions: ${specFunctions || "Standard functional UI controls"}`;
+      } else {
+        directive = `[STAGES DIRECTIVE - ROLE: FINISHER AGENT]
+Your goal is to polish, refine, optimize, and style the current app to make it look absolutely stunning, pixel-perfect, and flow effortlessly.
+Specifically look at adding:
+- Dynamic CSS entrance animations (or using framer-motion if applicable).
+- Polishing typography hierarchies, font pairings, text tracking.
+- Aligning and perfecting spacing, margins, responsive paddings.
+- Visual micro-interactions on hover, active states, buttons.
+Keep files completely intact, updating details seamlessly.`;
       }
-    } else {
-      // OLLAMA LOCAL MODE
-      // Replicate the Ollama client connection
-      try {
-        const response = await fetch(ollamaUrl, {
+
+      const fullPromptWithDirective = `${directive}\n\nUser request: ${promptText}`;
+
+      if (config.provider === "ollama") {
+        const response = await fetch(config.ollamaUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            model: ollamaModel,
-            prompt: `You are an expert react coder inside an IDE. Return only code. Prompt: ${userPrompt}`,
+            model: config.ollamaModel,
+            prompt: `Workspace Files Context:\n${JSON.stringify(files, null, 2)}\n\n${fullPromptWithDirective}\n\nRespond in JSON matching the schema:\n{ "explanation": "friendly message string", "files": [ { "path": "filename", "content": "file contents" } ] }`,
             stream: false,
           }),
         });
 
         if (!response.ok) {
-          throw new Error("Ollama instance not found. Ensure 'ollama run llama3' is active on your machine and CORS is enabled.");
+          throw new Error(`Ollama returned status code: ${response.status}`);
+        }
+
+        const rawData = await response.json();
+        let parsed;
+        try {
+          parsed = JSON.parse(rawData.response);
+        } catch {
+          parsed = { explanation: rawData.response, files: [] };
+        }
+
+        const assMsg: ChatMessage = {
+          id: Math.random().toString(),
+          role: "assistant",
+          message: parsed.explanation || "Processed local Ollama completion.",
+          timestamp: new Date().toLocaleTimeString().split(" ")[0],
+          pendingFiles: parsed.files && parsed.files.length > 0 ? parsed.files : undefined,
+          applied: false,
+        };
+        setActiveMessages((prev) => [...prev, assMsg]);
+      } else {
+        const response = await fetch("/api/ai/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt: fullPromptWithDirective,
+            files: files,
+            chatHistory: updatedMessages.map((m) => ({
+              role: m.role,
+              message: m.message,
+            })),
+            provider: config.provider,
+            geminiModel: config.geminiModel,
+            openaiModel: config.openaiModel,
+            customGeminiKey: config.customGeminiKey,
+            customOpenaiKey: config.customOpenaiKey,
+          }),
+        });
+
+        const contentType = response.headers.get("content-type");
+        if (!response.ok) {
+          let errMsg = `Proxy returned code: ${response.status}`;
+          if (contentType && contentType.includes("application/json")) {
+            const errData = await response.json();
+            errMsg = errData.error || errMsg;
+          }
+          throw new Error(errMsg);
         }
 
         const data = await response.json();
-        const codeText = data.response;
-
-        // Since local Ollama might not return formatted file mappings directly,
-        // we parse any code blocks returned by local Ollama and update src/App.tsx!
-        let extractedCode = codeText;
-        const match = codeText.match(/```(?:typescript|javascript|tsx)?([\s\S]*?)```/);
-        if (match && match[1]) {
-          extractedCode = match[1].trim();
-        }
-
-        const simulatedFiles: VirtualFile[] = [
-          {
-            path: "src/App.tsx",
-            content: extractedCode,
-          },
-        ];
-
-        const assistantMsg: ChatMessage = {
+        const assMsg: ChatMessage = {
           id: Math.random().toString(),
           role: "assistant",
-          message: "Local Ollama generation complete. Code synthesized. Click Compare Changes below to review modifications.",
-          timestamp: new Date().toLocaleTimeString(),
-          pendingFiles: simulatedFiles,
+          message: data.explanation || "Completed stage execution successfully.",
+          timestamp: new Date().toLocaleTimeString().split(" ")[0],
+          pendingFiles: data.files && data.files.length > 0 ? data.files : undefined,
           applied: false,
         };
 
-        setMessages((prev) => [...prev, assistantMsg]);
+        setActiveMessages((prev) => [...prev, assMsg]);
 
-      } catch (err: any) {
-        // If real Ollama localhost connection fails, provide a clever high-fidelity simulation 
-        // fallback so that the workspace still responds beautifully for presentation!
-        setTimeout(() => {
-          const simulatedResponse = `[OLLAMA SIMULATOR Fallback] I tried connecting to your local Ollama port but got a connection error. Here is a high-fidelity simulator response to fulfill your request:
-
-To demonstrate local model behavior, I have automatically synthesized a custom component for your request: "${userPrompt}". Review and compare the changes before applying them!`;
-
-          const simulatedCode = `import React, { useState } from "react";
-import { Sparkles, Activity, ShieldAlert, Cpu } from "lucide-react";
-
-export default function App() {
-  const [clicks, setClicks] = useState(0);
-
-  return (
-    <div className="min-h-screen bg-zinc-950 text-orange-400 flex flex-col items-center justify-center p-6 font-mono border-4 border-orange-500/20">
-      <div className="bg-zinc-900 border border-orange-500/30 p-8 rounded-3xl max-w-md w-full shadow-[0_0_50px_rgba(249,115,22,0.1)] text-center space-y-6">
-        <Cpu className="h-16 w-16 text-orange-500 mx-auto animate-bounce" />
-        <h1 className="text-2xl font-black uppercase tracking-wider text-orange-500">Ollama Simulator</h1>
-        <p className="text-xs text-zinc-400 leading-relaxed">
-          This container simulates local code generation pipelines. Click below to verify reactivity.
-        </p>
-        <div className="bg-zinc-950 p-4 rounded-xl border border-zinc-800 text-sm font-semibold">
-          Pulse Clicks: {clicks}
-        </div>
-        <button 
-          onClick={() => setClicks(c => c + 1)}
-          className="w-full py-3 bg-orange-500 text-zinc-950 font-extrabold uppercase rounded-xl hover:bg-orange-400 transition cursor-pointer"
-        >
-          Increment Core
-        </button>
-      </div>
-    </div>
-  );
-}`;
-
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: Math.random().toString(),
-              role: "assistant",
-              message: simulatedResponse,
-              timestamp: new Date().toLocaleTimeString(),
-              pendingFiles: [{ path: "src/App.tsx", content: simulatedCode }],
-              applied: false,
-            },
-          ]);
-
-          setLoading(false);
-        }, 1200);
+        // If we are in the Purpose Designer stage, let's try to extract key details automatically from the response to help populate our specification wizard
+        if (activeStage === "purpose" && data.explanation) {
+          const expLower = data.explanation.toLowerCase();
+          // Heuristics for purpose extraction
+          if (specPurpose === "") {
+            const purposeMatch = data.explanation.match(/(?:purpose|app is a|building a|goal is to)\s+([^.\n]+)/i);
+            if (purposeMatch && purposeMatch[1]) {
+              setSpecPurpose(purposeMatch[1].trim().substring(0, 100));
+            }
+          }
+        }
       }
+    } catch (err: any) {
+      console.error("AI Generation failed:", err);
+      setError(err.message || "An unexpected network error occurred.");
+    } finally {
+      setLoading(false);
     }
   };
 
+  const handleApplySingleMessage = (msg: ChatMessage) => {
+    if (msg.pendingFiles) {
+      onApplyFiles(msg.message, msg.pendingFiles);
+      setActiveMessages((prev) =>
+        prev.map((m) => (m.id === msg.id ? { ...m, applied: true } : m))
+      );
+    }
+  };
+
+  // Stage Hand-off Actions
+  const transferToCodeWriter = () => {
+    if (!specPurpose) {
+      alert("Please enter a basic app purpose or discuss with the Designer first!");
+      return;
+    }
+
+    const compiledBrief = `DESIGN SPECIFICATIONS BRIEF:
+- App Core Purpose: ${specPurpose}
+- Color Palette & Aesthetics: ${specColors || "Electric green #1ae854 and dark transparent green theme"}
+- Core Functions: ${specFunctions || "Interactive controls & dynamic local states"}
+
+Let's begin writing the application code based on this finalized specifications brief!`;
+
+    // Append to Code messages list
+    const systemBriefMsg: ChatMessage = {
+      id: "brief-" + Math.random().toString(),
+      role: "assistant",
+      message: `📥 RECEIVED DESIGN SPEC BRIEF:\n\n${compiledBrief}\n\nI am compiling the workspace strategy now. What should we build first? I recommend writing our main layout!`,
+      timestamp: new Date().toLocaleTimeString().split(" ")[0],
+    };
+
+    setCodeMessages((prev) => [...prev, systemBriefMsg]);
+    setActiveStage("code");
+  };
+
+  const transferToFinisher = () => {
+    const handoffMsg: ChatMessage = {
+      id: "handoff-" + Math.random().toString(),
+      role: "assistant",
+      message: `⚡ Workspace files are written. I am ready to polish your design! I will focus on visual balance, spacing, typography alignment, CSS glows, and adding micro-interactions using our green #1ae854 palette. Let's make it flow effortlessly!`,
+      timestamp: new Date().toLocaleTimeString().split(" ")[0],
+    };
+    setFinisherMessages((prev) => [...prev, handoffMsg]);
+    setActiveStage("finisher");
+  };
+
+  // Quick prompt helper functions
+  const applyQuickSuggestion = (text: string) => {
+    setInputValue(text);
+    handleSendMessage(undefined, text);
+  };
+
+  const handlePresetFill = (purpose: string, colors: string, functions: string) => {
+    setSpecPurpose(purpose);
+    setSpecColors(colors);
+    setSpecFunctions(functions);
+    const textPrompt = `I'd like to design an app with this setup:\n- Purpose: ${purpose}\n- Theme: ${colors}\n- Functions: ${functions}. Can you review this specification?`;
+    applyQuickSuggestion(textPrompt);
+  };
+
   return (
-    <div className="flex flex-col h-full bg-[#141414] border-r border-[#2a2a2a] text-zinc-300">
-      {/* Selector and Title */}
-      <div className="p-4 border-b border-[#2a2a2a] bg-[#141414] space-y-3 flex-shrink-0">
+    <div className="flex flex-col h-full bg-[#050705] border-r border-[#1ae854]/12 w-full overflow-hidden">
+      {/* 3-Agent Stage Indicator Progress Header */}
+      <div className="p-3 bg-[#020502]/90 border-b border-[#1ae854]/12 flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
-            <Sparkles className="h-4 w-4 text-[var(--accent)] animate-pulse" />
-            <span className="text-xs font-bold tracking-widest text-zinc-500 uppercase">AI CODING AGENT</span>
+            <Sparkles className="h-4 w-4 text-[#1ae854] animate-pulse-soft" />
+            <span className="text-[11px] font-black uppercase tracking-widest text-[#1ae854]">AI AGENT PIPELINE</span>
           </div>
-          
-          <div className="flex bg-[#0d0d0d] p-0.5 rounded border border-[#2a2a2a]">
+          <span className="text-[9px] text-[#1ae854]/70 font-mono font-bold bg-[#1ae854]/10 px-1.5 py-0.5 rounded border border-[#1ae854]/15">
+            3 STAGES
+          </span>
+        </div>
+
+        {/* Horizontal 3-Stage Progress Nav */}
+        <div className="grid grid-cols-3 gap-1 bg-[#010301] p-0.5 rounded-lg border border-[#1ae854]/10">
+          <button
+            onClick={() => setActiveStage("purpose")}
+            className={`py-2 px-1 rounded text-[9px] font-black uppercase tracking-wider transition cursor-pointer flex flex-col items-center gap-1 justify-center relative ${
+              activeStage === "purpose"
+                ? "bg-[#1ae854]/10 text-[#1ae854] border border-[#1ae854]/25"
+                : "text-zinc-500 hover:text-zinc-300"
+            }`}
+          >
+            <Palette className="h-3 w-3" />
+            <span>1. Designer</span>
+            {specPurpose && (
+              <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-[#1ae854] rounded-full"></span>
+            )}
+          </button>
+          <button
+            onClick={() => setActiveStage("code")}
+            className={`py-2 px-1 rounded text-[9px] font-black uppercase tracking-wider transition cursor-pointer flex flex-col items-center gap-1 justify-center ${
+              activeStage === "code"
+                ? "bg-[#1ae854]/10 text-[#1ae854] border border-[#1ae854]/25"
+                : "text-zinc-500 hover:text-zinc-300"
+            }`}
+          >
+            <Code className="h-3 w-3" />
+            <span>2. Writer</span>
+          </button>
+          <button
+            onClick={() => setActiveStage("finisher")}
+            className={`py-2 px-1 rounded text-[9px] font-black uppercase tracking-wider transition cursor-pointer flex flex-col items-center gap-1 justify-center ${
+              activeStage === "finisher"
+                ? "bg-[#1ae854]/10 text-[#1ae854] border border-[#1ae854]/25"
+                : "text-zinc-500 hover:text-zinc-300"
+            }`}
+          >
+            <Paintbrush className="h-3 w-3" />
+            <span>3. Finisher</span>
+          </button>
+        </div>
+      </div>
+
+      {/* STAGE SPECIFIC PANEL (Upper half, collapsing if empty) */}
+      <div className="border-b border-[#1ae854]/12 bg-[#020502]/40">
+        {activeStage === "purpose" && (
+          <div className="p-3 space-y-2.5">
+            <div className="flex justify-between items-center">
+              <span className="text-[10px] font-black uppercase tracking-wider text-zinc-300">STAGE 1: DEFINE SPECIFICATIONS</span>
+              <span className="text-[9px] font-mono text-emerald-400">Talk to Customer</span>
+            </div>
+
+            {/* Spec Wizard Fields */}
+            <div className="space-y-1.5 bg-[#010301]/60 p-2.5 rounded-lg border border-[#1ae854]/10">
+              <div>
+                <label className="text-[9px] text-[#1ae854]/70 font-bold uppercase block mb-1">Main Purpose of App</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Budget calculator with neon bar charts..."
+                  value={specPurpose}
+                  onChange={(e) => setSpecPurpose(e.target.value)}
+                  className="w-full bg-[#050705] border border-[#1ae854]/15 rounded p-1.5 text-xs font-mono text-zinc-100 placeholder-zinc-700 focus:outline-none focus:border-[#1ae854]/40"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 mt-1">
+                <div>
+                  <label className="text-[9px] text-[#1ae854]/70 font-bold uppercase block mb-1">Color Palette</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Transparent Green"
+                    value={specColors}
+                    onChange={(e) => setSpecColors(e.target.value)}
+                    className="w-full bg-[#050705] border border-[#1ae854]/15 rounded p-1.5 text-[11px] font-mono text-zinc-100 placeholder-zinc-700 focus:outline-none focus:border-[#1ae854]/40"
+                  />
+                </div>
+                <div>
+                  <label className="text-[9px] text-[#1ae854]/70 font-bold uppercase block mb-1">Core Functions</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Local Storage, D3 Visuals"
+                    value={specFunctions}
+                    onChange={(e) => setSpecFunctions(e.target.value)}
+                    className="w-full bg-[#050705] border border-[#1ae854]/15 rounded p-1.5 text-[11px] font-mono text-zinc-100 placeholder-zinc-700 focus:outline-none focus:border-[#1ae854]/40"
+                  />
+                </div>
+              </div>
+
+              {/* Hand-off trigger */}
+              {specPurpose && (
+                <button
+                  onClick={transferToCodeWriter}
+                  className="w-full mt-2 bg-[#1ae854] hover:bg-[#15bd42] text-black font-black uppercase text-[10px] py-1.5 rounded transition flex items-center justify-center gap-1 shadow-md cursor-pointer"
+                >
+                  🚀 Export Brief to Code Writer
+                  <ArrowRight className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+
+            {/* Quick Presets */}
+            <div className="space-y-1 pt-0.5">
+              <span className="text-[9px] font-bold text-zinc-500 uppercase block tracking-wider">Quick Preset Specs:</span>
+              <div className="flex flex-col gap-1">
+                <button 
+                  onClick={() => handlePresetFill("Retro Synthwave Audio Dashboard", "Emerald & Black transparent", "Visual Equalizer, local sound toggles")}
+                  className="text-left text-[10px] font-mono bg-[#010301] hover:bg-[#1ae854]/5 border border-[#1ae854]/10 text-zinc-400 p-1.5 rounded truncate transition"
+                >
+                  📟 Synthwave Audio Dashboard
+                </button>
+                <button 
+                  onClick={() => handlePresetFill("Local Finance & Budget Planner", "Dark Transparent Green (#1ae854)", "Visual bar charts, CRUD expense tracker, CSV export")}
+                  className="text-left text-[10px] font-mono bg-[#010301] hover:bg-[#1ae854]/5 border border-[#1ae854]/10 text-zinc-400 p-1.5 rounded truncate transition"
+                >
+                  💸 Finance & Budget Planner
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeStage === "code" && (
+          <div className="p-3 space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-[10px] font-black uppercase tracking-wider text-zinc-300">STAGE 2: CODE GENERATION ENGINE</span>
+              <span className="text-[9px] font-mono text-sky-400">Writer Active</span>
+            </div>
+
+            {/* Current Active Specs Display */}
+            <div className="p-2 bg-[#010301]/80 rounded border border-[#1ae854]/12 text-[10px] text-zinc-400 space-y-1">
+              <span className="font-bold text-[#1ae854] uppercase tracking-wider block">Compiled Specifications:</span>
+              <p className="truncate"><strong className="text-zinc-300">Purpose:</strong> {specPurpose || "General app prototype"}</p>
+              <p className="truncate"><strong className="text-zinc-300">Colors:</strong> {specColors || "Green #1ae854 & dark translucent"}</p>
+              
+              <div className="flex gap-1 pt-1">
+                <button
+                  onClick={() => applyQuickSuggestion(`Draft the complete index.html and style.css for my app: ${specPurpose} using colors ${specColors || 'green #1ae854 and dark transparent green'} and functions: ${specFunctions || 'basic widgets'}`)}
+                  className="flex-1 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 rounded py-1 text-[9px] uppercase font-bold transition truncate"
+                >
+                  🔨 Write Initial Code
+                </button>
+                <button
+                  onClick={transferToFinisher}
+                  className="flex-1 bg-[#1ae854]/10 hover:bg-[#1ae854]/20 text-[#1ae854] border border-[#1ae854]/25 rounded py-1 text-[9px] uppercase font-bold transition flex items-center justify-center gap-0.5"
+                >
+                  ✨ Send to Finisher
+                  <ArrowRight className="h-2.5 w-2.5" />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeStage === "finisher" && (
+          <div className="p-3 space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-[10px] font-black uppercase tracking-wider text-zinc-300">STAGE 3: REFINEMENT & POLISH</span>
+              <span className="text-[9px] font-mono text-purple-400">Finisher Active</span>
+            </div>
+
+            {/* Polish Prompt Actions */}
+            <div className="grid grid-cols-2 gap-1.5">
+              <button
+                onClick={() => applyQuickSuggestion("Can you inspect my files and polish the visual design to make it highly immersive with beautiful green #1ae854 layout accents, neon glowing borders, dynamic entrance transitions, and polished typography?")}
+                className="bg-[#1ae854]/5 hover:bg-[#1ae854]/10 text-[#1ae854] border border-[#1ae854]/20 p-2 rounded text-[9px] text-left font-mono font-bold leading-tight transition"
+              >
+                ✨ Visual & Neon Glow Polish
+              </button>
+              <button
+                onClick={() => applyQuickSuggestion("Add gorgeous smooth exit/entry fade animations and sleek micro-interactions/hover-scale states to all buttons, cards, list items in the codebase to make it flow effortlessly.")}
+                className="bg-[#1ae854]/5 hover:bg-[#1ae854]/10 text-[#1ae854] border border-[#1ae854]/20 p-2 rounded text-[9px] text-left font-mono font-bold leading-tight transition"
+              >
+                🛸 Smooth Micro-interactions
+              </button>
+              <button
+                onClick={() => applyQuickSuggestion("Polish typography by pairing Space Grotesk/Inter fonts beautifully, adjusting letter-spacing (tracking-tight), line-heights, custom headings, and spacing layout balances.")}
+                className="bg-[#1ae854]/5 hover:bg-[#1ae854]/10 text-[#1ae854] border border-[#1ae854]/20 p-2 rounded text-[9px] text-left font-mono font-bold leading-tight transition"
+              >
+                ✍️ Perfect Typography & Fonts
+              </button>
+              <button
+                onClick={() => applyQuickSuggestion("Polish responsiveness, clean up files, adjust spacing/paddings so everything scales wonderfully on mobile views, and verify that there are no layout overflows.")}
+                className="bg-[#1ae854]/5 hover:bg-[#1ae854]/10 text-[#1ae854] border border-[#1ae854]/20 p-2 rounded text-[9px] text-left font-mono font-bold leading-tight transition"
+              >
+                📱 Mobile Fluidity & Margins
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Provider Selector Panel (Collapsible / Compact) */}
+      <div className="p-2 border-b border-[#1ae854]/12 flex flex-col gap-1.5 bg-[#010301]/80">
+        <div className="flex items-center justify-between">
+          <span className="text-[9px] text-zinc-500 font-mono">LLM Proxy Engine:</span>
+          <div className="flex gap-2">
             <button
-              onClick={() => { setAiMode("gemini"); setError(null); }}
-              className={`px-2.5 py-1 text-[10px] uppercase font-bold rounded transition cursor-pointer ${
-                aiMode === "gemini" ? "bg-[var(--accent)] text-[var(--accent-text)]" : "text-zinc-500 hover:text-zinc-300"
+              onClick={() => onChangeConfig({ ...config, provider: "gemini" })}
+              className={`text-[9px] font-bold px-1.5 py-0.5 rounded transition ${
+                config.provider === "gemini" ? "text-[#1ae854] bg-[#1ae854]/10 border border-[#1ae854]/30" : "text-zinc-600 hover:text-zinc-400"
               }`}
             >
               Gemini
             </button>
             <button
-              onClick={() => { setAiMode("ollama"); setError(null); }}
-              className={`px-2.5 py-1 text-[10px] uppercase font-bold rounded transition cursor-pointer ${
-                aiMode === "ollama" ? "bg-[var(--accent)] text-[var(--accent-text)]" : "text-zinc-500 hover:text-zinc-300"
+              onClick={() => onChangeConfig({ ...config, provider: "openai" })}
+              className={`text-[9px] font-bold px-1.5 py-0.5 rounded transition ${
+                config.provider === "openai" ? "text-[#1ae854] bg-[#1ae854]/10 border border-[#1ae854]/30" : "text-zinc-600 hover:text-zinc-400"
+              }`}
+            >
+              OpenAI
+            </button>
+            <button
+              onClick={() => onChangeConfig({ ...config, provider: "ollama" })}
+              className={`text-[9px] font-bold px-1.5 py-0.5 rounded transition ${
+                config.provider === "ollama" ? "text-[#1ae854] bg-[#1ae854]/10 border border-[#1ae854]/30" : "text-zinc-600 hover:text-zinc-400"
               }`}
             >
               Ollama
             </button>
           </div>
         </div>
-
-        {/* Ollama Parameter configuration */}
-        {aiMode === "ollama" && (
-          <div className="p-2.5 bg-[#0d0d0d] rounded border border-[#2a2a2a] space-y-2 text-[10px]">
-            <div className="flex items-center justify-between">
-              <span className="text-zinc-500 font-bold uppercase tracking-widest">Local config</span>
-              <span className="text-emerald-500 flex items-center gap-1">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-ping"></span> Simulator Active
-              </span>
-            </div>
-            <div className="space-y-1">
-              <label className="text-zinc-500 block">Ollama URL</label>
-              <input
-                type="text"
-                value={ollamaUrl}
-                onChange={(e) => setOllamaUrl(e.target.value)}
-                className="w-full bg-[#141414] border border-[#2a2a2a] rounded px-1.5 py-0.5 font-mono text-zinc-300 focus:outline-none"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-zinc-500 block">Target Model</label>
-              <input
-                type="text"
-                value={ollamaModel}
-                onChange={(e) => setOllamaModel(e.target.value)}
-                className="w-full bg-[#141414] border border-[#2a2a2a] rounded px-1.5 py-0.5 font-mono text-zinc-300 focus:outline-none"
-              />
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* Messages viewport */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin bg-[#0d0d0d]/30">
-        {messages.map((msg) => (
+      {/* Chat Messages Log */}
+      <div className="flex-1 overflow-y-auto p-3 space-y-3.5 bg-[#020402]/60 scrollbar-none">
+        {activeMessages.map((msg) => (
           <div
             key={msg.id}
-            className={`flex flex-col max-w-[85%] ${
-              msg.role === "user" ? "ml-auto items-end" : "mr-auto items-start"
+            className={`flex flex-col space-y-1 ${
+              msg.role === "user" ? "items-end" : "items-start"
             }`}
           >
-            <div className="flex items-center gap-1.5 mb-1 text-[10px] text-zinc-500">
-              {msg.role === "assistant" && (
-                <Cpu className={`h-3 w-3 ${aiMode === "gemini" ? "text-[var(--accent)]" : "text-blue-400"}`} />
-              )}
-              <span className="font-semibold uppercase tracking-wider">
-                {msg.role === "user" ? "You" : aiMode === "gemini" ? "Gemini Agent" : "Ollama Local"}
-              </span>
-              <span>•</span>
-              <span>{msg.timestamp}</span>
-            </div>
+            <span className="text-[8px] text-zinc-600 font-mono tracking-wider uppercase">
+              {msg.role === "user" ? "You" : `${activeStage.toUpperCase()} Agent`} • {msg.timestamp}
+            </span>
 
             <div
-              className={`p-3 rounded text-xs leading-relaxed font-mono whitespace-pre-wrap border ${
+              className={`p-2.5 rounded-xl text-xs leading-relaxed max-w-[90%] font-sans ${
                 msg.role === "user"
-                  ? "bg-[var(--accent-glow)] text-[var(--accent)] border-[var(--accent)]/20 rounded-tr-none shadow-md shadow-emerald-950/20"
-                  : "bg-[#141414]/95 border-[#2a2a2a] text-zinc-300 rounded-tl-none"
+                  ? "bg-[#1ae854]/10 text-emerald-100 border border-[#1ae854]/25 font-semibold"
+                  : "bg-[#010301] text-zinc-300 border border-[#1ae854]/10 green-glow"
               }`}
             >
-              {msg.message}
-            </div>
+              <p className="whitespace-pre-line leading-relaxed">{msg.message}</p>
 
-            {/* Files changed tracker badge */}
-            {msg.filesChanged && (
-              <div className="mt-2 p-2 bg-[#141414] border border-[#2a2a2a] rounded w-full text-[10px]">
-                <div className="text-zinc-500 font-bold uppercase tracking-wider mb-1 flex items-center justify-between">
-                  <span>Files written:</span>
-                  <span className="text-emerald-500 flex items-center gap-1">
-                    <Check className="h-3 w-3" /> Applied
+              {/* Suggestions / Pending Files */}
+              {msg.pendingFiles && msg.pendingFiles.length > 0 && (
+                <div className="mt-3 border-t border-[#1ae854]/12 pt-2.5 space-y-2">
+                  <span className="text-[9px] font-bold text-[#1ae854] block tracking-wider uppercase">
+                    PROPOSED COMPILER ADJUSTMENTS ({msg.pendingFiles.length})
                   </span>
-                </div>
-                {msg.filesChanged.map((file) => (
-                  <div key={file} className="flex items-center gap-1.5 text-zinc-300 font-mono py-0.5">
-                    <Check className="h-3 w-3 text-emerald-500" />
-                    <span>{file}</span>
+                  <div className="flex flex-wrap gap-1 pb-1">
+                    {msg.pendingFiles.map((pf) => (
+                      <span
+                        key={pf.path}
+                        className="text-[9px] font-mono bg-black border border-[#1ae854]/15 text-zinc-400 px-1.5 py-0.5 rounded"
+                      >
+                        {pf.path}
+                      </span>
+                    ))}
                   </div>
-                ))}
-              </div>
-            )}
 
-            {/* Pending staged changes card */}
-            {msg.pendingFiles && !msg.applied && (
-              <div className="mt-2.5 p-3 bg-[#111111] border border-[#262626] rounded-xl w-full text-[11px] space-y-2.5 shadow-md shadow-black/60 relative overflow-hidden group">
-                <div className="absolute top-0 left-0 w-1 h-full bg-[var(--accent)] animate-pulse" />
-                <div className="flex items-center justify-between text-[10px] text-zinc-400 font-bold uppercase tracking-wider pl-1">
-                  <span className="flex items-center gap-1.5">
-                    <GitPullRequest className="h-3.5 w-3.5 text-[var(--accent)]" />
-                    <span>AI Modifications Staged</span>
-                  </span>
-                  <span className="text-zinc-500 font-normal font-mono text-[9px] bg-zinc-900 border border-[#222] px-1.5 py-0.5 rounded">
-                    {msg.pendingFiles.length} {msg.pendingFiles.length === 1 ? "file" : "files"}
-                  </span>
+                  <div className="flex gap-1.5 pt-1">
+                    <button
+                      onClick={() => onOpenCompare(msg)}
+                      className="flex-1 bg-zinc-950 hover:bg-zinc-900 text-[9px] font-black uppercase text-zinc-300 py-1.5 rounded transition cursor-pointer border border-[#1ae854]/12 text-center"
+                    >
+                      Compare Diffs
+                    </button>
+                    <button
+                      onClick={() => handleApplySingleMessage(msg)}
+                      disabled={msg.applied}
+                      className={`flex-1 text-[9px] font-black uppercase text-center py-1.5 rounded transition cursor-pointer border ${
+                        msg.applied
+                          ? "bg-emerald-950/10 text-emerald-500 border-emerald-950/30"
+                          : "bg-[#1ae854]/20 text-[#1ae854] border-[#1ae854]/30 hover:bg-[#1ae854]/35"
+                      }`}
+                    >
+                      {msg.applied ? "✓ Applied" : "Apply Merge"}
+                    </button>
+                  </div>
                 </div>
-                
-                <div className="pl-1.5 space-y-1 font-mono text-[10px] text-zinc-400 max-h-[80px] overflow-y-auto">
-                  {msg.pendingFiles.map((pf) => (
-                    <div key={pf.path} className="flex items-center gap-1.5 py-0.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                      <span className="truncate">{pf.path}</span>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="flex gap-2 pt-1 pl-1">
-                  <button
-                    onClick={() => handleOpenCompare(msg)}
-                    className="flex-1 py-2 bg-[#1a1a1a] hover:bg-zinc-800 border border-zinc-800 text-[10px] font-bold uppercase rounded-lg transition text-zinc-300 flex items-center justify-center gap-1.5 cursor-pointer shadow-sm hover:text-white"
-                  >
-                    <Eye className="h-3 w-3 text-blue-400" />
-                    <span>Compare Changes</span>
-                  </button>
-                  <button
-                    onClick={() => handleApplyPending(msg)}
-                    className="flex-1 py-2 text-[var(--accent-text)] text-[10px] font-extrabold uppercase rounded-lg transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg hover:brightness-110"
-                    style={{
-                      backgroundColor: accentColor,
-                      boxShadow: `0 0 10px ${accentColor}25`
-                    }}
-                  >
-                    <Check className="h-3 w-3" />
-                    <span>Apply Directly</span>
-                  </button>
-                </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         ))}
 
-        {/* AI Agent Thinking State Indicator */}
+        {/* Typing Loading State */}
         {loading && (
-          <div className="flex flex-col items-start max-w-[80%]">
-            <div className="flex items-center gap-1.5 mb-1 text-[10px] text-zinc-500">
-              <Cpu className="h-3 w-3 text-[var(--accent)] animate-spin" />
-              <span className="font-semibold uppercase tracking-wider">AI Coding Core</span>
-            </div>
-            <div className="p-4 bg-[#141414] rounded rounded-tl-none border border-[#2a2a2a] flex items-center gap-3">
-              <div className="flex space-x-1.5">
-                <span className="h-2 w-2 rounded-full bg-[var(--accent)] animate-[bounce_1s_infinite_100ms]"></span>
-                <span className="h-2 w-2 rounded-full bg-[var(--accent)] animate-[bounce_1s_infinite_200ms]"></span>
-                <span className="h-2 w-2 rounded-full bg-[var(--accent)] animate-[bounce_1s_infinite_300ms]"></span>
-              </div>
-              <span className="text-[11px] font-mono text-zinc-500">Synthesizing virtual DOM code...</span>
+          <div className="flex flex-col space-y-1 items-start">
+            <span className="text-[8px] text-zinc-600 font-mono tracking-wider uppercase">
+              {activeStage.toUpperCase()} AGENT • Thinking...
+            </span>
+            <div className="bg-[#010301] border border-[#1ae854]/15 p-2.5 rounded-xl flex items-center gap-2">
+              <RefreshCw className="h-3.5 w-3.5 text-[#1ae854] animate-spin" />
+              <span className="text-[10px] text-[#1ae854]/80 font-mono tracking-widest animate-pulse">
+                synthesizing app logic...
+              </span>
             </div>
           </div>
         )}
 
+        {/* Error Flag bar */}
         {error && (
-          <div className="p-3 bg-red-950/20 border border-red-900/30 rounded flex items-start gap-2 text-xs text-red-400">
-            <AlertCircle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
-            <div className="space-y-1">
-              <span className="font-bold">Agent failed to compile:</span>
-              <p className="leading-relaxed font-mono text-[10px]">{error}</p>
+          <div className="p-3 bg-red-950/10 border border-red-900/20 text-red-400 rounded-xl text-xs flex items-start gap-2">
+            <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
+            <div className="space-y-0.5">
+              <span className="font-bold uppercase tracking-wider block text-[9px]">AI Pipeline Error</span>
+              <p className="leading-relaxed text-[11px]">{error}</p>
             </div>
           </div>
         )}
@@ -418,42 +654,24 @@ export default function App() {
         <div ref={chatBottomRef} />
       </div>
 
-      {/* Input Tray */}
-      <div className="p-3 border-t border-[#2a2a2a] bg-[#141414] flex-shrink-0">
-        <div className="flex items-center gap-2 bg-[#0d0d0d] border border-[#2a2a2a] rounded px-3 py-2 focus-within:border-[var(--accent)] transition-all duration-300">
-          <textarea
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSendMessage();
-              }
-            }}
-            placeholder="Type code request (e.g. 'Build a glowing countdown app')"
-            className="flex-1 bg-transparent text-xs text-zinc-100 outline-none resize-none h-8 font-mono py-1.5 placeholder-zinc-600"
-            disabled={loading}
-          />
-          <button
-            onClick={handleSendMessage}
-            disabled={!inputValue.trim() || loading}
-            className="p-2 bg-[var(--accent)] hover:opacity-90 text-[var(--accent-text)] rounded transition disabled:opacity-40 cursor-pointer flex items-center justify-center"
-          >
-            <Send className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      </div>
-
-      {activeCompareMessage && activeCompareMessage.pendingFiles && (
-        <CompareModal
-          isOpen={!!activeCompareMessage}
-          onClose={() => setActiveCompareMessage(null)}
-          originalFiles={files}
-          pendingFiles={activeCompareMessage.pendingFiles}
-          onApply={handleApplyFromModal}
-          accentColor={accentColor}
+      {/* Input Form Footer */}
+      <form onSubmit={handleSendMessage} className="p-2.5 bg-[#020402] border-t border-[#1ae854]/12 flex gap-1.5">
+        <input
+          type="text"
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          placeholder={`Ask the ${activeStage} agent to build...`}
+          disabled={loading}
+          className="flex-1 bg-black border border-[#1ae854]/15 rounded-lg px-2.5 py-1.5 text-xs font-mono text-zinc-300 placeholder-zinc-700 focus:outline-none focus:border-[#1ae854]"
         />
-      )}
+        <button
+          type="submit"
+          disabled={loading || !inputValue.trim()}
+          className="p-1.5 bg-[#1ae854] hover:bg-[#16d14b] disabled:opacity-30 rounded-lg text-black transition flex items-center justify-center cursor-pointer shadow-lg shadow-[#1ae854]/10"
+        >
+          <Send className="h-4 w-4" />
+        </button>
+      </form>
     </div>
   );
-}
+};

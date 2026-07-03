@@ -8,20 +8,57 @@ export interface ChatMessage {
   role: "user" | "assistant";
   message: string;
   timestamp: string;
-  filesChanged?: string[];
   pendingFiles?: VirtualFile[];
   applied?: boolean;
-  isThinking?: boolean;
 }
 
-export type SidebarTab = "explorer" | "agent" | "gallery" | "settings" | "dashboard" | "testing" | "search" | "git";
-
-export type TerminalTheme = "neon" | "retro" | "monochromatic";
-
-export interface GalleryTemplate {
-  id: string;
-  title: string;
+export interface Template {
+  name: string;
   description: string;
-  category: string;
+  icon: string;
   files: VirtualFile[];
 }
+
+export interface AIConfig {
+  provider: "gemini" | "openai" | "ollama";
+  geminiModel: string;
+  openaiModel: string;
+  ollamaUrl: string;
+  ollamaModel: string;
+  customGeminiKey: string;
+  customOpenaiKey: string;
+}
+
+export interface Snapshot {
+  id: string;
+  timestamp: string;
+  message: string;
+  files: VirtualFile[];
+}
+
+export interface TestCase {
+  id: string;
+  name: string;
+  filePath: string;
+  assertionType: "contains" | "not-contains" | "valid-html" | "no-empty";
+  expectedValue: string;
+  status: "idle" | "passed" | "failed";
+  message?: string;
+}
+
+export interface SearchResult {
+  filePath: string;
+  lineNumber: number;
+  lineContent: string;
+  matchIndex: number;
+  matchLength: number;
+}
+
+export interface WorkspaceStats {
+  totalFiles: number;
+  totalLines: number;
+  totalCharacters: number;
+  aiGenerationsCount: number;
+  activeLanguageBreakdown: { [key: string]: number };
+}
+

@@ -1,489 +1,296 @@
 import React, { useState, useMemo } from "react";
-import { 
-  Search, 
-  Replace, 
-  ReplaceAll, 
-  ChevronRight, 
-  ChevronDown, 
-  FileCode, 
-  Check, 
-  X, 
-  CaseSensitive, 
-  WholeWord, 
-  ArrowRight, 
-  Sparkles, 
-  Info,
-  Beaker,
-  AlertCircle
-} from "lucide-react";
-import { VirtualFile } from "../types";
+import { VirtualFile, SearchResult } from "../types";
+import { Search, Replace, ReplaceAll, FileCode, CheckCircle } from "lucide-react";
 
 interface SearchReplacePanelProps {
   files: VirtualFile[];
-  onSelectFile: (path: string) => void;
-  onCodeChange: (path: string, code: string) => void;
-  onNavigateToSnippet?: (path: string, lineNum: number) => void;
-  accentColor: string;
+  onUpdateFiles: (updatedFiles: VirtualFile[]) => void;
 }
 
-interface SearchMatch {
-  lineNum: number;
-  text: string;
-  startIndex: number;
-  length: number;
-}
-
-interface FileSearchMatches {
-  path: string;
-  matches: SearchMatch[];
-}
-
-export default function SearchReplacePanel({
+export const SearchReplacePanel: React.FC<SearchReplacePanelProps> = ({
   files,
-  onSelectFile,
-  onCodeChange,
-  onNavigateToSnippet,
-  accentColor,
-}: SearchReplacePanelProps) {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [replaceTerm, setReplaceTerm] = useState("");
-  const [matchCase, setMatchCase] = useState(false);
-  const [wholeWord, setWholeWord] = useState(false);
-  const [showReplaceControls, setShowReplaceControls] = useState(true);
-  
-  // Track expanded state of files in results list
-  const [expandedFiles, setExpandedFiles] = useState<Record<string, boolean>>({});
-  
-  // Action notifications
-  const [actionNotice, setActionNotice] = useState<{ type: "success" | "info"; text: string } | null>(null);
+  onUpdateFiles,
+}) => {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [replaceQuery, setReplaceQuery] = useState("");
+  const [isCaseSensitive, setIsCaseSensitive] = useState(false);
+  const [message, setMessage] = useState<{ text: string; type: "success" | "info" } | null>(null);
 
-  // Core Search Engine: parses all files and finds matches
-  const searchResults = useMemo(() => {
-    if (!searchTerm.trim()) return [];
-
-    const results: FileSearchMatches[] = [];
+  // Computed search results matching query
+  const searchResults = useMemo<SearchResult[]>(() => {
+    if (!searchQuery) return [];
+    const results: SearchResult[] = [];
 
     files.forEach((file) => {
       const lines = file.content.split("\n");
-      const fileMatches: SearchMatch[] = [];
+      lines.forEach((line, lineIdx) => {
+        let contentToSearch = line;
+        let queryToSearch = searchQuery;
 
-      lines.forEach((lineText, index) => {
-        let tempLine = lineText;
-        let tempSearch = searchTerm;
-
-        if (!matchCase) {
-          tempLine = lineText.toLowerCase();
-          tempSearch = searchTerm.toLowerCase();
+        if (!isCaseSensitive) {
+          contentToSearch = contentToSearch.toLowerCase();
+          queryToSearch = queryToSearch.toLowerCase();
         }
 
-        let indexPos = 0;
-        while ((indexPos = tempLine.indexOf(tempSearch, indexPos)) !== -1) {
-          // Check whole word if option is enabled
-          let isMatch = true;
-          if (wholeWord) {
-            const charBefore = indexPos > 0 ? lineText[indexPos - 1] : "";
-            const charAfter = indexPos + searchTerm.length < lineText.length 
-              ? lineText[indexPos + searchTerm.length] 
-              : "";
-            
-            const wordRegex = /[a-zA-Z0-9_]/;
-            if (wordRegex.test(charBefore) || wordRegex.test(charAfter)) {
-              isMatch = false;
-            }
-          }
+        let startPos = 0;
+        while (true) {
+          const matchIdx = contentToSearch.indexOf(queryToSearch, startPos);
+          if (matchIdx === -1) break;
 
-          if (isMatch) {
-            fileMatches.push({
-              lineNum: index + 1,
-              text: lineText,
-              startIndex: indexPos,
-              length: searchTerm.length,
-            });
-          }
+          results.push({
+            filePath: file.path,
+            lineNumber: lineIdx + 1,
+            lineContent: line,
+            matchIndex: matchIdx,
+            matchLength: searchQuery.length,
+          });
 
-          indexPos += searchTerm.length || 1;
+          // Move forward to find other occurrences in the same line
+          startPos = matchIdx + searchQuery.length;
         }
       });
-
-      if (fileMatches.length > 0) {
-        results.push({
-          path: file.path,
-          matches: fileMatches,
-        });
-      }
     });
-
-    // Auto-expand newly discovered matching files by default
-    const initialExpanded: Record<string, boolean> = {};
-    results.forEach((res) => {
-      initialExpanded[res.path] = true;
-    });
-    setExpandedFiles((prev) => ({ ...initialExpanded, ...prev }));
 
     return results;
-  }, [files, searchTerm, matchCase, wholeWord]);
+  }, [files, searchQuery, isCaseSensitive]);
 
-  // Aggregate metrics
-  const totalMatchesCount = useMemo(() => {
-    return searchResults.reduce((acc, curr) => acc + curr.matches.length, 0);
-  }, [searchResults]);
-
-  // Handle selective replace on a single specific match
-  const handleReplaceSingle = (path: string, match: SearchMatch) => {
-    const file = files.find((f) => f.path === path);
-    if (!file) return;
-
-    const lines = file.content.split("\n");
-    const lineText = lines[match.lineNum - 1];
-
-    if (!lineText) return;
-
-    // Splice the string to do exact positional replacement
-    const newLineText = 
-      lineText.substring(0, match.startIndex) + 
-      replaceTerm + 
-      lineText.substring(match.startIndex + match.length);
-
-    lines[match.lineNum - 1] = newLineText;
-    const newContent = lines.join("\n");
-    
-    onCodeChange(path, newContent);
-    triggerNotice("success", `Replaced matching snippet in ${path.split("/").pop()}!`);
-  };
-
-  // Helper helper to execute replacement inside single file
-  const performReplaceInFile = (file: VirtualFile) => {
-    const lines = file.content.split("\n");
-    const newLines = lines.map((lineText) => {
-      let tempLine = lineText;
-      let tempSearch = searchTerm;
-      if (!matchCase) {
-        tempLine = lineText.toLowerCase();
-        tempSearch = searchTerm.toLowerCase();
-      }
-
-      let newText = "";
-      let lastIdx = 0;
-      let idx = 0;
-
-      while ((idx = tempLine.indexOf(tempSearch, lastIdx)) !== -1) {
-        let isMatch = true;
-        if (wholeWord) {
-          const charBefore = idx > 0 ? lineText[idx - 1] : "";
-          const charAfter = idx + searchTerm.length < lineText.length 
-            ? lineText[idx + searchTerm.length] 
-            : "";
-          const wordRegex = /[a-zA-Z0-9_]/;
-          if (wordRegex.test(charBefore) || wordRegex.test(charAfter)) {
-            isMatch = false;
-          }
-        }
-
-        if (isMatch) {
-          newText += lineText.substring(lastIdx, idx) + replaceTerm;
-          lastIdx = idx + searchTerm.length;
-        } else {
-          newText += lineText.substring(lastIdx, idx + 1);
-          lastIdx = idx + 1;
-        }
-      }
-      newText += lineText.substring(lastIdx);
-      return newText;
-    });
-
-    return newLines.join("\n");
-  };
-
-  // Handle selective file-level replacement
-  const handleReplaceFile = (path: string) => {
-    const file = files.find((f) => f.path === path);
-    if (!file) return;
-
-    const newContent = performReplaceInFile(file);
-    onCodeChange(path, newContent);
-    triggerNotice("success", `Refactored all matches in ${path.split("/").pop()}!`);
-  };
-
-  // Handle global global "Replace All" across all matching files
+  // Execute replace operation for ALL matches in files
   const handleReplaceAll = () => {
-    if (!searchTerm) return;
-    let filesAffected = 0;
+    if (!searchQuery) return;
 
-    searchResults.forEach((res) => {
-      const file = files.find((f) => f.path === res.path);
-      if (file) {
-        const newContent = performReplaceInFile(file);
-        onCodeChange(res.path, newContent);
-        filesAffected++;
+    let totalReplacements = 0;
+    const updatedFiles = files.map((file) => {
+      let content = file.content;
+      let occurrences = 0;
+
+      if (isCaseSensitive) {
+        occurrences = (content.split(searchQuery).length - 1);
+        content = content.replaceAll(searchQuery, replaceQuery);
+      } else {
+        // Case insensitive replacement using regex
+        try {
+          const escapedQuery = searchQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          const regex = new RegExp(escapedQuery, "gi");
+          occurrences = (content.match(regex) || []).length;
+          content = content.replace(regex, replaceQuery);
+        } catch (e) {
+          // Fallback simple replace
+          occurrences = (content.split(searchQuery).length - 1);
+          content = content.replaceAll(searchQuery, replaceQuery);
+        }
       }
+
+      totalReplacements += occurrences;
+      return { ...file, content };
     });
 
-    triggerNotice(
-      "success", 
-      `Successfully replaced ${totalMatchesCount} matches across ${filesAffected} files!`
-    );
+    if (totalReplacements > 0) {
+      onUpdateFiles(updatedFiles);
+      setMessage({
+        text: `Successfully replaced ${totalReplacements} occurrences across the workspace.`,
+        type: "success",
+      });
+    } else {
+      setMessage({ text: "No matching occurrences found to replace.", type: "info" });
+    }
   };
 
-  const triggerNotice = (type: "success" | "info", text: string) => {
-    setActionNotice({ type, text });
-    setTimeout(() => setActionNotice(null), 3500);
-  };
+  // Replace occurrences inside a single specific file
+  const handleReplaceInFile = (filePath: string) => {
+    if (!searchQuery) return;
 
-  const toggleFileExpanded = (path: string) => {
-    setExpandedFiles((prev) => ({ ...prev, [path]: !prev[path] }));
-  };
+    let occurrences = 0;
+    const updatedFiles = files.map((file) => {
+      if (file.path !== filePath) return file;
+      let content = file.content;
 
-  // Helper to render matched text with a visual highlighted overlay
-  const renderHighlightedText = (text: string, startIdx: number, length: number) => {
-    const before = text.substring(0, startIdx);
-    const match = text.substring(startIdx, startIdx + length);
-    const after = text.substring(startIdx + length);
+      if (isCaseSensitive) {
+        occurrences = (content.split(searchQuery).length - 1);
+        content = content.replaceAll(searchQuery, replaceQuery);
+      } else {
+        try {
+          const escapedQuery = searchQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          const regex = new RegExp(escapedQuery, "gi");
+          occurrences = (content.match(regex) || []).length;
+          content = content.replace(regex, replaceQuery);
+        } catch (e) {
+          occurrences = (content.split(searchQuery).length - 1);
+          content = content.replaceAll(searchQuery, replaceQuery);
+        }
+      }
 
-    return (
-      <span className="font-mono text-[11px] truncate block text-zinc-400">
-        <span className="text-zinc-600">{before}</span>
-        <span 
-          className="px-1 py-0.5 rounded font-extrabold shadow-sm bg-amber-500/25 text-amber-300 border border-amber-500/40"
-          style={{ textShadow: "0 0 8px rgba(245, 158, 11, 0.5)" }}
-        >
-          {match}
-        </span>
-        <span className="text-zinc-500">{after}</span>
-      </span>
-    );
+      return { ...file, content };
+    });
+
+    if (occurrences > 0) {
+      onUpdateFiles(updatedFiles);
+      setMessage({
+        text: `Replaced ${occurrences} occurrences in "${filePath}".`,
+        type: "success",
+      });
+    }
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#141414] border-r border-[#2a2a2a] text-zinc-300">
-      
-      {/* Panel Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-[#2a2a2a] bg-[#141414]">
-        <div className="flex items-center space-x-2">
-          <div className="p-1.5 rounded bg-zinc-800 text-[var(--accent)]">
-            <Search className="h-4 w-4" />
-          </div>
-          <span className="text-xs font-bold tracking-widest text-zinc-400 uppercase">Search & Replace</span>
-        </div>
-        <button
-          onClick={() => setShowReplaceControls(!showReplaceControls)}
-          className={`px-2 py-0.5 rounded text-[10px] font-mono border transition-all cursor-pointer ${
-            showReplaceControls 
-              ? "bg-[var(--accent-glow)] text-[var(--accent)] border-[var(--accent)]/30" 
-              : "bg-zinc-900 text-zinc-500 border-[#222] hover:text-zinc-300"
-          }`}
-          title="Toggle Replace Controls"
-        >
-          {showReplaceControls ? "Replace Mode" : "Search Only"}
-        </button>
-      </div>
+    <div className="space-y-6 text-zinc-300">
+      {/* Settings Grid */}
+      <div className="bg-zinc-900/60 border border-zinc-850 p-5 rounded-xl space-y-4">
+        <h3 className="text-xs font-semibold tracking-wider text-zinc-400 uppercase flex items-center gap-2">
+          <Search className="h-4 w-4 text-purple-400" />
+          GLOBAL SEARCH & REPLACE
+        </h3>
 
-      {/* Inputs Section */}
-      <div className="p-4 border-b border-[#222] bg-[#161616] space-y-3 flex-shrink-0">
-        
-        {/* Search Field */}
-        <div className="space-y-1.5">
-          <label className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider">Search Query</label>
-          <div className="relative flex items-center bg-[#0d0d0d] border border-[#2a2a2a] rounded-lg focus-within:border-[var(--accent)] transition">
-            <Search className="h-4 w-4 absolute left-3 text-zinc-500" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search across files..."
-              className="w-full bg-transparent pl-9 pr-20 py-2.5 text-xs text-zinc-100 outline-none font-mono"
-            />
-            {/* Quick Match Options Bar inside input */}
-            <div className="absolute right-2 flex items-center space-x-1.5 bg-[#141414] p-1 rounded border border-zinc-800">
-              <button
-                onClick={() => setMatchCase(!matchCase)}
-                className={`p-1 rounded transition text-[10px] cursor-pointer ${
-                  matchCase 
-                    ? "bg-amber-500/20 text-amber-400 border border-amber-500/40" 
-                    : "text-zinc-500 hover:text-zinc-300 border border-transparent"
-                }`}
-                title="Match Case"
-              >
-                <CaseSensitive className="h-3.5 w-3.5" />
-              </button>
-              <button
-                onClick={() => setWholeWord(!wholeWord)}
-                className={`p-1 rounded transition text-[10px] cursor-pointer ${
-                  wholeWord 
-                    ? "bg-blue-500/20 text-blue-400 border border-blue-500/40" 
-                    : "text-zinc-500 hover:text-zinc-300 border border-transparent"
-                }`}
-                title="Match Whole Word"
-              >
-                <WholeWord className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Replace Field (if enabled) */}
-        {showReplaceControls && (
-          <div className="space-y-1.5 pt-1 animate-fadeIn">
-            <div className="flex items-center justify-between">
-              <label className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider">Replace With</label>
-              {searchTerm && totalMatchesCount > 0 && (
-                <button
-                  onClick={handleReplaceAll}
-                  className="text-[10px] uppercase font-extrabold text-amber-400 hover:text-amber-300 transition flex items-center gap-1 cursor-pointer"
-                  title="Refactor everywhere instantly"
-                >
-                  <ReplaceAll className="h-3.5 w-3.5" />
-                  <span>Replace All ({totalMatchesCount})</span>
-                </button>
-              )}
-            </div>
-            <div className="relative flex items-center bg-[#0d0d0d] border border-[#2a2a2a] rounded-lg focus-within:border-amber-500 transition">
-              <Replace className="h-4 w-4 absolute left-3 text-zinc-500" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Find input */}
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-medium text-zinc-400">FIND WORD/STRING</label>
+            <div className="relative">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-zinc-500" />
               <input
                 type="text"
-                value={replaceTerm}
-                onChange={(e) => setReplaceTerm(e.target.value)}
-                placeholder="Replace with..."
-                className="w-full bg-transparent pl-9 pr-12 py-2.5 text-xs text-zinc-100 outline-none font-mono"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setMessage(null);
+                }}
+                placeholder="Type query to search files..."
+                className="w-full bg-zinc-950 border border-zinc-800 rounded-lg pl-9 pr-4 py-2 text-xs text-white focus:outline-none focus:border-purple-500 transition-colors placeholder:text-zinc-600"
               />
-              <span className="absolute right-3 text-[10px] text-zinc-600 font-mono select-none">
-                Refactor
-              </span>
             </div>
           </div>
-        )}
 
+          {/* Replace input */}
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-medium text-zinc-400">REPLACE WITH</label>
+            <div className="relative">
+              <Replace className="absolute left-3 top-2.5 h-4 w-4 text-zinc-500" />
+              <input
+                type="text"
+                value={replaceQuery}
+                onChange={(e) => {
+                  setReplaceQuery(e.target.value);
+                  setMessage(null);
+                }}
+                placeholder="Type replacement string..."
+                className="w-full bg-zinc-950 border border-zinc-800 rounded-lg pl-9 pr-4 py-2 text-xs text-white focus:outline-none focus:border-purple-500 transition-colors placeholder:text-zinc-600"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Options */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-zinc-850/40">
+          <label className="flex items-center gap-2 cursor-pointer select-none text-[11px] text-zinc-400">
+            <input
+              type="checkbox"
+              checked={isCaseSensitive}
+              onChange={(e) => setIsCaseSensitive(e.target.checked)}
+              className="rounded bg-zinc-950 border-zinc-800 text-purple-600 focus:ring-purple-600"
+            />
+            Case Sensitive Matching
+          </label>
+
+          <button
+            onClick={handleReplaceAll}
+            disabled={!searchQuery || searchResults.length === 0}
+            className={`px-4 py-2 text-xs font-semibold rounded-lg flex items-center gap-2 transition-colors ${
+              searchQuery && searchResults.length > 0
+                ? "bg-purple-600 hover:bg-purple-500 text-white"
+                : "bg-zinc-800 text-zinc-500 cursor-not-allowed"
+            }`}
+          >
+            <ReplaceAll className="h-4 w-4" />
+            Replace All ({searchResults.length})
+          </button>
+        </div>
       </div>
 
-      {/* Notification banner */}
-      {actionNotice && (
-        <div className="mx-4 mt-3 p-2 bg-emerald-950/20 border border-emerald-500/30 text-emerald-400 rounded-lg text-xs font-semibold flex items-center gap-2 animate-fadeIn">
-          <Check className="h-4 w-4 text-emerald-400 flex-shrink-0" />
-          <span className="line-clamp-2 leading-relaxed font-sans">{actionNotice.text}</span>
+      {/* Messages */}
+      {message && (
+        <div
+          className={`p-3 rounded-lg flex items-center gap-2 text-xs ${
+            message.type === "success"
+              ? "bg-emerald-950/25 border border-emerald-900/30 text-emerald-400"
+              : "bg-zinc-850 border border-zinc-800 text-zinc-400"
+          }`}
+        >
+          <CheckCircle className="h-4 w-4 shrink-0" />
+          <span>{message.text}</span>
         </div>
       )}
 
-      {/* Search results info / Welcome tips */}
-      {!searchTerm ? (
-        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center text-zinc-500 space-y-4">
-          <div className="p-3 bg-zinc-900 rounded-2xl">
-            <Search className="h-8 w-8 text-zinc-700" />
-          </div>
-          <div>
-            <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Global Search Engine</h4>
-            <p className="text-xs text-zinc-500 max-w-xs mx-auto mt-1 leading-relaxed">
-              Type above to perform sub-string regex searches, locate snippets in code, or perform large refactoring sweeps.
+      {/* Results view */}
+      <div className="bg-zinc-900/40 border border-zinc-850 rounded-xl overflow-hidden">
+        <div className="px-5 py-3 border-b border-zinc-850 bg-zinc-950 flex items-center justify-between">
+          <span className="text-[11px] font-bold tracking-wider text-zinc-400 uppercase">
+            Search Results ({searchResults.length} matches)
+          </span>
+        </div>
+
+        {searchResults.length === 0 ? (
+          <div className="text-center py-10 text-zinc-500 space-y-1">
+            <Search className="h-6 w-6 mx-auto text-zinc-700" />
+            <p className="text-xs">
+              {searchQuery ? "No matches found." : "Type a find query above to list workspace matches."}
             </p>
           </div>
-        </div>
-      ) : searchResults.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center text-zinc-500 space-y-2">
-          <AlertCircle className="h-6 w-6 text-zinc-700" />
-          <p className="text-xs font-medium text-zinc-400">No matches found for "{searchTerm}"</p>
-          <p className="text-[11px] text-zinc-600">Check spelling or change case-sensitivity options.</p>
-        </div>
-      ) : (
-        /* Results list */
-        <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin">
-          <div className="text-[10px] uppercase font-bold text-zinc-500 px-1 tracking-wider flex items-center justify-between">
-            <span>Results in Workspace</span>
-            <span className="font-mono text-zinc-400">
-              {searchResults.length} {searchResults.length === 1 ? "file" : "files"}, {totalMatchesCount} {totalMatchesCount === 1 ? "match" : "matches"}
-            </span>
-          </div>
-
-          <div className="space-y-2">
-            {searchResults.map((fileRes) => {
-              const isExpanded = expandedFiles[fileRes.path] ?? true;
-              const fileName = fileRes.path.split("/").pop() || "";
+        ) : (
+          <div className="divide-y divide-zinc-850 max-h-[400px] overflow-y-auto">
+            {/* Group results by file */}
+            {Array.from(new Set(searchResults.map((r) => r.filePath))).map((filePath) => {
+              const fileResults = searchResults.filter((r) => r.filePath === filePath);
 
               return (
-                <div key={fileRes.path} className="border border-zinc-900 bg-[#111] rounded-xl overflow-hidden shadow-sm">
-                  
-                  {/* File group Header */}
-                  <div 
-                    onClick={() => toggleFileExpanded(fileRes.path)}
-                    className="flex items-center justify-between px-3 py-2 bg-[#171717] hover:bg-[#1c1c1c] cursor-pointer select-none border-b border-zinc-900 transition"
-                  >
-                    <div className="flex items-center space-x-2 overflow-hidden">
-                      {isExpanded ? (
-                        <ChevronDown className="h-3.5 w-3.5 text-zinc-500 flex-shrink-0" />
-                      ) : (
-                        <ChevronRight className="h-3.5 w-3.5 text-zinc-500 flex-shrink-0" />
-                      )}
-                      <FileCode className="h-4 w-4 text-blue-400 flex-shrink-0" />
-                      <div className="font-mono text-xs text-zinc-300 font-semibold truncate">
-                        {fileName}
-                        <span className="text-[10px] text-zinc-500 font-normal ml-2 font-sans">
-                          ({fileRes.matches.length} {fileRes.matches.length === 1 ? "match" : "matches"})
-                        </span>
-                      </div>
+                <div key={filePath} className="p-4 space-y-3 bg-zinc-950/20">
+                  {/* File Header */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-zinc-200">
+                      <FileCode className="h-4 w-4 text-blue-400" />
+                      <span>{filePath}</span>
+                      <span className="text-[10px] text-zinc-500">({fileResults.length} matches)</span>
                     </div>
 
-                    {/* Quick replace in file */}
-                    {showReplaceControls && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleReplaceFile(fileRes.path);
-                        }}
-                        className="px-2 py-0.5 text-[9px] uppercase font-extrabold bg-zinc-800 hover:bg-zinc-700 text-amber-400 border border-amber-500/20 hover:border-amber-500/40 rounded transition flex items-center gap-1 cursor-pointer"
-                        title={`Replace all ${fileRes.matches.length} matches in this file`}
-                      >
-                        <Replace className="h-3 w-3" />
-                        <span>Replace File</span>
-                      </button>
-                    )}
+                    <button
+                      onClick={() => handleReplaceInFile(filePath)}
+                      className="px-2.5 py-1 text-[10px] bg-zinc-800 hover:bg-purple-900/30 hover:text-purple-300 border border-zinc-750 hover:border-purple-900/40 text-zinc-300 font-medium rounded-md transition-all flex items-center gap-1.5"
+                    >
+                      <Replace className="h-3 w-3" />
+                      Replace In File
+                    </button>
                   </div>
 
-                  {/* Lines list */}
-                  {isExpanded && (
-                    <div className="divide-y divide-zinc-900/60 bg-[#0c0c0c]/80 select-text">
-                      {fileRes.matches.map((match, idx) => (
-                        <div 
-                          key={idx}
-                          onClick={() => {
-                            onSelectFile(fileRes.path);
-                            if (onNavigateToSnippet) {
-                              onNavigateToSnippet(fileRes.path, match.lineNum);
-                            }
-                          }}
-                          className="group flex items-start gap-3 p-2.5 hover:bg-[#1a1a1a]/40 cursor-pointer transition select-text"
+                  {/* Matching Lines list */}
+                  <div className="space-y-1">
+                    {fileResults.map((res, i) => {
+                      const before = res.lineContent.substring(0, res.matchIndex);
+                      const match = res.lineContent.substring(res.matchIndex, res.matchIndex + res.matchLength);
+                      const after = res.lineContent.substring(res.matchIndex + res.matchLength);
+
+                      return (
+                        <div
+                          key={i}
+                          className="flex items-start gap-3 pl-6 pr-4 py-1.5 hover:bg-zinc-900/30 rounded font-mono text-[11px] leading-relaxed transition-colors border-l-2 border-transparent hover:border-purple-600"
                         >
-                          {/* Line gutter index */}
-                          <div className="w-8 text-right font-mono text-[10px] text-zinc-600 select-none pt-0.5">
-                            {match.lineNum}
-                          </div>
-
-                          {/* Highlighted text match */}
-                          <div className="flex-1 min-w-0 select-text">
-                            {renderHighlightedText(match.text, match.startIndex, match.length)}
-                          </div>
-
-                          {/* Single replace action button */}
-                          {showReplaceControls && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleReplaceSingle(fileRes.path, match);
-                              }}
-                              className="opacity-0 group-hover:opacity-100 p-1 text-[10px] hover:bg-zinc-800 rounded text-amber-400 hover:text-amber-300 transition cursor-pointer flex items-center justify-center gap-1 self-center"
-                              title="Replace this single match"
-                            >
-                              <Check className="h-3.5 w-3.5" />
-                            </button>
-                          )}
+                          <span className="text-zinc-600 select-none text-right w-8">
+                            {res.lineNumber}
+                          </span>
+                          <span className="text-zinc-400 whitespace-pre truncate">
+                            {before}
+                            <mark className="bg-yellow-500/30 text-yellow-200 py-0.5 px-0.5 rounded border border-yellow-500/20">
+                              {match}
+                            </mark>
+                            {after}
+                          </span>
                         </div>
-                      ))}
-                    </div>
-                  )}
-
+                      );
+                    })}
+                  </div>
                 </div>
               );
             })}
           </div>
-        </div>
-      )}
-
+        )}
+      </div>
     </div>
   );
-}
+};
