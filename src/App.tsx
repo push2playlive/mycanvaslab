@@ -700,7 +700,7 @@ export default function App() {
         {activeTab === "dashboard" && (
           <div className="flex-1 overflow-y-auto p-6 bg-[#020402]">
             <div className="max-w-5xl mx-auto">
-              <Dashboard files={files} config={aiConfig} onChangeConfig={handleChangeConfig} />
+              <Dashboard files={files} config={aiConfig} onChangeConfig={handleChangeConfig} snapshots={snapshots} />
             </div>
           </div>
         )}

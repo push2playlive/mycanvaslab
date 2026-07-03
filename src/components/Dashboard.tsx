@@ -1,14 +1,16 @@
 import React, { useMemo, useState, useEffect } from "react";
-import { VirtualFile, WorkspaceStats, AIConfig } from "../types";
+import { VirtualFile, WorkspaceStats, AIConfig, Snapshot } from "../types";
 import { FolderOpen, FileText, Code2, Cpu, BarChart2, Key, Bot, CheckCircle2, Sliders, Trash2, ShieldAlert } from "lucide-react";
+import { ProjectStatistics } from "./ProjectStatistics";
 
 interface DashboardProps {
   files: VirtualFile[];
   config: AIConfig;
   onChangeConfig: (newConfig: AIConfig) => void;
+  snapshots: Snapshot[];
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ files, config, onChangeConfig }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ files, config, onChangeConfig, snapshots }) => {
   const [geminiKey, setGeminiKey] = useState(config.customGeminiKey);
   const [openaiKey, setOpenaiKey] = useState(config.customOpenaiKey);
   const [ollamaUrl, setOllamaUrl] = useState(config.ollamaUrl);
@@ -319,6 +321,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ files, config, onChangeCon
           )}
         </div>
       </div>
+
+      {/* Real-time Project Analytics Visualization */}
+      <div className="border-t border-[#1ae854]/10 pt-6">
+        <h3 className="text-xs font-black text-white tracking-widest uppercase flex items-center gap-2 mb-4">
+          <BarChart2 className="h-4.5 w-4.5 text-[#1ae854]" />
+          COMPUTE & CODE STATISTICS VISUALIZER
+        </h3>
+        <ProjectStatistics files={files} snapshots={snapshots} />
+      </div>
+
     </div>
   );
 };
