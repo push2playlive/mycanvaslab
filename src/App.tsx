@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { Code, Palette, Terminal as TermIcon, Sliders, Shield, Sparkles, FolderOpen, BarChart3, Search, GitBranch, CheckSquare, Eye, EyeOff, LayoutGrid, Menu, ChevronDown } from "lucide-react";
+import { Code, Palette, Terminal as TermIcon, Sliders, Shield, Sparkles, FolderOpen, BarChart3, Search, GitBranch, CheckSquare, Eye, EyeOff, LayoutGrid, Menu, ChevronDown, User, CreditCard, FolderDown } from "lucide-react";
 import { Group, Panel, Separator } from "react-resizable-panels";
+import JSZip from "jszip";
 import { VirtualFile, ChatMessage, AIConfig, Template, Snapshot } from "./types";
 import { FileExplorer } from "./components/FileExplorer";
 import { CodeEditor } from "./components/CodeEditor";
@@ -14,6 +15,8 @@ import { Dashboard } from "./components/Dashboard";
 import { SearchReplacePanel } from "./components/SearchReplacePanel";
 import { VersionControl } from "./components/VersionControl";
 import { TestingTab } from "./components/TestingTab";
+import { MembersSpace } from "./components/MembersSpace";
+import PricingPage from "./components/PricingPage";
 
 // Seed workspace with a highly polished default starter pack
 const INITIAL_FILES: VirtualFile[] = [
@@ -89,7 +92,7 @@ export default function App() {
   });
 
   const [activeTab, setActiveTab] = useState<
-    "workspace" | "dashboard" | "search" | "vcs" | "testing" | "gallery" | "terminal" | "settings"
+    "workspace" | "dashboard" | "search" | "vcs" | "testing" | "gallery" | "terminal" | "settings" | "members" | "pricing"
   >("workspace");
 
   const [showGhostDropdown, setShowGhostDropdown] = useState(false);
@@ -156,6 +159,36 @@ export default function App() {
     }
     if (newConfig.customOpenaiKey) {
       localStorage.setItem("custom_openai_key", newConfig.customOpenaiKey);
+    }
+  };
+
+  const [isZipping, setIsZipping] = useState(false);
+  const [zipSuccess, setZipSuccess] = useState(false);
+
+  const handleDownloadZip = async () => {
+    if (isZipping) return;
+    setIsZipping(true);
+    setZipSuccess(false);
+    try {
+      const zip = new JSZip();
+      files.forEach((file) => {
+        zip.file(file.path, file.content);
+      });
+      const content = await zip.generateAsync({ type: "blob" });
+      const url = window.URL.createObjectURL(content);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "mycanvaslab-workspace.zip";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      setZipSuccess(true);
+      setTimeout(() => setZipSuccess(false), 2000);
+    } catch (err) {
+      console.error("Failed to compile ZIP workspace", err);
+    } finally {
+      setIsZipping(false);
     }
   };
 
@@ -272,12 +305,42 @@ export default function App() {
             Workspace
           </button>
 
+          <button
+            onClick={() => {
+              setActiveTab("members");
+              setShowGhostDropdown(false);
+            }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition cursor-pointer whitespace-nowrap ${
+              activeTab === "members"
+                ? "bg-[#1ae854]/15 text-[#1ae854] border border-[#1ae854]/30 shadow-sm shadow-[#1ae854]/10"
+                : "text-zinc-500 hover:text-zinc-300"
+            }`}
+          >
+            <User className="h-3.5 w-3.5 text-emerald-400" />
+            Members Portal
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab("pricing");
+              setShowGhostDropdown(false);
+            }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition cursor-pointer whitespace-nowrap ${
+              activeTab === "pricing"
+                ? "bg-[#1ae854]/15 text-[#1ae854] border border-[#1ae854]/30 shadow-sm shadow-[#1ae854]/10"
+                : "text-zinc-500 hover:text-zinc-300"
+            }`}
+          >
+            <CreditCard className="h-3.5 w-3.5 text-[#1ae854]" />
+            Pricing Plans
+          </button>
+
           {/* Ghost hamburger dropdown */}
           <div className="relative">
             <button
               onClick={() => setShowGhostDropdown(!showGhostDropdown)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider transition cursor-pointer whitespace-nowrap border ${
-                activeTab !== "workspace"
+                activeTab !== "workspace" && activeTab !== "members" && activeTab !== "pricing"
                   ? "bg-[#1ae854]/15 text-[#1ae854] border-[#1ae854]/35"
                   : "bg-transparent text-zinc-500 hover:text-zinc-300 border-transparent hover:bg-zinc-900/40"
               }`}
@@ -292,6 +355,20 @@ export default function App() {
                 <div className="px-2.5 py-1 text-[9px] font-mono text-zinc-500 uppercase tracking-widest border-b border-[#1ae854]/10 mb-1">
                   Lab Extras & Tools
                 </div>
+                <button
+                  onClick={() => {
+                    setActiveTab("pricing");
+                    setShowGhostDropdown(false);
+                  }}
+                  className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left text-xs transition ${
+                    activeTab === "pricing"
+                      ? "bg-[#1ae854]/10 text-[#1ae854]"
+                      : "text-zinc-400 hover:text-zinc-200 hover:bg-[#1ae854]/5"
+                  }`}
+                >
+                  <CreditCard className="h-3.5 w-3.5 text-[#1ae854]" />
+                  <span>Subscription Pricing</span>
+                </button>
                 <button
                   onClick={() => {
                     setActiveTab("dashboard");
@@ -506,6 +583,24 @@ export default function App() {
               <span className={`w-1.5 h-1.5 rounded-full ${showAIChat ? "bg-[#1ae854]" : "bg-zinc-700"}`} />
               AI Chat
             </button>
+
+            <span className="text-zinc-700 mx-1">|</span>
+
+            <button
+              onClick={handleDownloadZip}
+              disabled={isZipping}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-[10px] font-black uppercase tracking-wider transition border cursor-pointer ${
+                zipSuccess
+                  ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40"
+                  : isZipping
+                    ? "bg-zinc-850 text-zinc-600 border-zinc-800"
+                    : "bg-[#1ae854]/10 text-[#1ae854] border-[#1ae854]/25 hover:bg-[#1ae854]/20 hover:border-[#1ae854]/40"
+              }`}
+              title="Download your entire virtual workspace as a standalone ZIP archive"
+            >
+              <FolderDown className={`h-3.5 w-3.5 ${isZipping ? "animate-bounce" : ""}`} />
+              <span>{zipSuccess ? "Downloaded ZIP!" : isZipping ? "Creating ZIP..." : "Download ZIP"}</span>
+            </button>
           </div>
         </div>
       )}
@@ -551,6 +646,7 @@ export default function App() {
                         onSelectFile={handleSelectFile}
                         onCreateFile={handleCreateFile}
                         onDeleteFile={handleDeleteFile}
+                        onDownloadZip={handleDownloadZip}
                       />
                     </div>
                   </Panel>
@@ -605,6 +701,22 @@ export default function App() {
           <div className="flex-1 overflow-y-auto p-6 bg-[#020402]">
             <div className="max-w-5xl mx-auto">
               <Dashboard files={files} config={aiConfig} onChangeConfig={handleChangeConfig} />
+            </div>
+          </div>
+        )}
+
+        {activeTab === "members" && (
+          <div className="flex-1 overflow-y-auto p-6 bg-[#020402]">
+            <div className="max-w-5xl mx-auto">
+              <MembersSpace files={files} />
+            </div>
+          </div>
+        )}
+
+        {activeTab === "pricing" && (
+          <div className="flex-1 overflow-y-auto p-6 bg-[#020402]">
+            <div className="max-w-5xl mx-auto">
+              <PricingPage />
             </div>
           </div>
         )}

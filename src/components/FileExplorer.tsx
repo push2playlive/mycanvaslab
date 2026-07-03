@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { FolderOpen, File, FileCode, Plus, Trash2, FileText } from "lucide-react";
+import { FolderOpen, File, FileCode, Plus, Trash2, FileText, FolderDown } from "lucide-react";
 import { VirtualFile } from "../types";
 
 interface FileExplorerProps {
@@ -8,6 +8,7 @@ interface FileExplorerProps {
   onSelectFile: (path: string) => void;
   onCreateFile: (path: string) => void;
   onDeleteFile: (path: string) => void;
+  onDownloadZip?: () => void;
 }
 
 export const FileExplorer: React.FC<FileExplorerProps> = ({
@@ -16,6 +17,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   onSelectFile,
   onCreateFile,
   onDeleteFile,
+  onDownloadZip,
 }) => {
   const [newFileName, setNewFileName] = useState("");
   const [showCreateInput, setShowCreateInput] = useState(false);
@@ -57,13 +59,24 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
           <FolderOpen className="h-4 w-4 text-purple-400" />
           <span className="text-xs font-black uppercase tracking-widest text-zinc-300">EXPLORER</span>
         </div>
-        <button
-          onClick={() => setShowCreateInput(!showCreateInput)}
-          className="p-1 hover:bg-zinc-800 rounded transition text-zinc-400 hover:text-zinc-100 cursor-pointer"
-          title="Create New File"
-        >
-          <Plus className="h-4 w-4" />
-        </button>
+        <div className="flex items-center gap-1">
+          {onDownloadZip && (
+            <button
+              onClick={onDownloadZip}
+              className="p-1 hover:bg-zinc-800 rounded transition text-zinc-400 hover:text-[#1ae854] cursor-pointer"
+              title="Download Workspace as ZIP"
+            >
+              <FolderDown className="h-4 w-4" />
+            </button>
+          )}
+          <button
+            onClick={() => setShowCreateInput(!showCreateInput)}
+            className="p-1 hover:bg-zinc-800 rounded transition text-zinc-400 hover:text-zinc-100 cursor-pointer"
+            title="Create New File"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
       {/* New File Creation Input */}

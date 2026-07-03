@@ -186,6 +186,62 @@ Strictly follow these rules:
   }
 });
 
+// Secure server-side endpoint for AI Avatar generation
+app.post("/api/ai/generate-avatar", async (req, res) => {
+  try {
+    const { prompt, customGeminiKey } = req.body;
+    if (!prompt) {
+      return res.status(400).json({ error: "Prompt is required." });
+    }
+
+    const apiKeyToUse = customGeminiKey || process.env.GEMINI_API_KEY;
+    if (!apiKeyToUse) {
+      throw new Error(
+        "Gemini API Key is missing. Please add a valid key in Settings (Bring Your Own Key) or set GEMINI_API_KEY on the server."
+      );
+    }
+
+    const ai = new GoogleGenAI({
+      apiKey: apiKeyToUse,
+      httpOptions: {
+        headers: {
+          "User-Agent": "aistudio-build",
+        },
+      },
+    });
+
+    const systemInstruction = `You are a creative modern SVG designer specializing in avatars, gaming icons, and developer profile graphics.
+Your task is to generate a beautiful, valid, self-contained SVG element that matches the user's prompt.
+Strictly follow these guidelines:
+1. Output MUST be valid, complete SVG code, beginning with '<svg' and ending with '</svg>'.
+2. The SVG MUST be responsive using viewBox="0 0 100 100", with rounded/circular styling suitable for a circular avatar profile (e.g., background circle, centered characters, modern abstract elements, neon glow, cyber, tech, organic).
+3. Do NOT include any markdown code blocks, backticks, or comments (no \`\`\`xml or \`\`\`svg wrapper). Just return the direct SVG string.
+4. Output MUST be clean, high quality, and visually spectacular, using modern gradients, glows, shadows, and clean geometry.`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: `Generate a gorgeous, colorful, highly detailed vector SVG avatar based on this theme: ${prompt}`,
+      config: {
+        systemInstruction,
+      },
+    });
+
+    let svgText = response.text || "";
+    svgText = svgText.trim();
+    if (svgText.startsWith("```")) {
+      svgText = svgText.replace(/^```[a-zA-Z]*\n/, "").replace(/\n```$/, "");
+    }
+    svgText = svgText.trim();
+
+    return res.json({ svg: svgText });
+  } catch (error: any) {
+    console.error("Avatar AI Generation Error:", error);
+    return res.status(500).json({
+      error: error.message || "Failed to generate SVG avatar using AI. Please check your API key.",
+    });
+  }
+});
+
   // Vite middleware for development or fallback for production
   if (process.env.NODE_ENV !== "production") {
     const { createServer: createViteServer } = await import("vite");
