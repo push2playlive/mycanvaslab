@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Code, Palette, Terminal as TermIcon, Sliders, Shield, Sparkles, FolderOpen, BarChart3, Search, GitBranch, CheckSquare, Eye, EyeOff, LayoutGrid, Menu, ChevronDown, User, CreditCard, FolderDown } from "lucide-react";
+import { Code, Palette, Terminal as TermIcon, Sliders, Shield, Sparkles, FolderOpen, BarChart3, Search, GitBranch, CheckSquare, Eye, EyeOff, LayoutGrid, Menu, ChevronDown, User, CreditCard, FolderDown, HelpCircle } from "lucide-react";
 import { Group, Panel, Separator } from "react-resizable-panels";
 import JSZip from "jszip";
 import { VirtualFile, ChatMessage, AIConfig, Template, Snapshot } from "./types";
@@ -17,6 +17,8 @@ import { VersionControl } from "./components/VersionControl";
 import { TestingTab } from "./components/TestingTab";
 import { MembersSpace } from "./components/MembersSpace";
 import PricingPage from "./components/PricingPage";
+import { KeyboardShortcutManager } from "./components/KeyboardShortcutManager";
+import { LegalAndInstructions } from "./components/LegalAndInstructions";
 
 // Seed workspace with a highly polished default starter pack
 const INITIAL_FILES: VirtualFile[] = [
@@ -124,6 +126,8 @@ export default function App() {
   const [compareOpen, setCompareOpen] = useState(false);
   const [compareMessage, setCompareMessage] = useState<ChatMessage | null>(null);
 
+  const [showLegalModal, setShowLegalModal] = useState(false);
+
   // Sync virtual files to localstorage
   useEffect(() => {
     localStorage.setItem("virtual_workspace_files", JSON.stringify(files));
@@ -221,6 +225,11 @@ export default function App() {
     setFiles((prev) =>
       prev.map((f) => (f.path === activeFilePath ? { ...f, content } : f))
     );
+  };
+
+  const handleSaveFile = () => {
+    localStorage.setItem("virtual_workspace_files", JSON.stringify(files));
+    console.log("[MyCanvasLab] Saved file checkpoint triggered.");
   };
 
   const handleLoadTemplate = (template: Template) => {
@@ -333,6 +342,17 @@ export default function App() {
           >
             <CreditCard className="h-3.5 w-3.5 text-[#1ae854]" />
             Pricing Plans
+          </button>
+
+          <button
+            onClick={() => {
+              setShowLegalModal(true);
+              setShowGhostDropdown(false);
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition cursor-pointer whitespace-nowrap text-zinc-500 hover:text-zinc-300 hover:bg-[#1ae854]/5 border border-transparent hover:border-[#1ae854]/10"
+          >
+            <HelpCircle className="h-3.5 w-3.5 text-[#1ae854]" />
+            Help & Legal
           </button>
 
           {/* Ghost hamburger dropdown */}
@@ -472,13 +492,24 @@ export default function App() {
           </div>
         </nav>
 
-        {/* Global indicators in Green */}
-        <div className="hidden lg:flex items-center gap-4 text-[10px] font-mono text-[#1ae854]/80">
-          <span className="flex items-center gap-1.5 bg-[#1ae854]/10 border border-[#1ae854]/25 px-2 py-1 rounded">
+        {/* Global indicators in Green & Keyboard Shortcut Manager */}
+        <div className="flex items-center gap-3 text-[10px] font-mono text-[#1ae854]/80">
+          <KeyboardShortcutManager
+            onSave={handleSaveFile}
+            onTogglePreview={() => setShowPreview((prev) => !prev)}
+            onToggleExplorer={() => setShowExplorer((prev) => !prev)}
+            onToggleAIChat={() => setShowAIChat((prev) => !prev)}
+            onSwitchTab={setActiveTab}
+            activeTab={activeTab}
+            showPreview={showPreview}
+            showExplorer={showExplorer}
+            showAIChat={showAIChat}
+          />
+          <span className="hidden sm:flex items-center gap-1.5 bg-[#1ae854]/10 border border-[#1ae854]/25 px-2 py-1 rounded">
             <span className="w-1.5 h-1.5 rounded-full bg-[#1ae854] animate-pulse"></span>
             PORT 3000 ACTIVE
           </span>
-          <span className="flex items-center gap-1.5 text-zinc-500">
+          <span className="hidden lg:flex items-center gap-1.5 text-zinc-500">
             <Shield className="h-3.5 w-3.5 text-zinc-600" />
             SECURE CONTAINER
           </span>
@@ -666,6 +697,7 @@ export default function App() {
                       <CodeEditor
                         activeFile={activeFile}
                         onUpdateContent={handleUpdateContent}
+                        onSave={handleSaveFile}
                         showCode={showCode}
                         showPreview={showPreview}
                         onToggleLayout={handleToggleLayout}
@@ -788,6 +820,11 @@ export default function App() {
           }}
         />
       )}
+
+      <LegalAndInstructions
+        isOpen={showLegalModal}
+        onClose={() => setShowLegalModal(false)}
+      />
     </div>
   );
 }
