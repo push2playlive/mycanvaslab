@@ -62,3 +62,16 @@ export interface WorkspaceStats {
   activeLanguageBreakdown: { [key: string]: number };
 }
 
+export interface ChatSession {
+  id: string;
+  name: string;
+  timestamp: string;
+  purposeMessages: ChatMessage[];
+  codeMessages: ChatMessage[];
+  finisherMessages: ChatMessage[];
+  specPurpose: string;
+  specColors: string;
+  specFunctions: string;
+  customSystemPrompt?: string;
+}
+

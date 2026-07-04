@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Code, Palette, Terminal as TermIcon, Sliders, Shield, Sparkles, FolderOpen, BarChart3, Search, GitBranch, CheckSquare, Eye, EyeOff, LayoutGrid, Menu, ChevronDown, User, CreditCard, FolderDown, HelpCircle } from "lucide-react";
+import { Code, Palette, Terminal as TermIcon, Sliders, Shield, Sparkles, FolderOpen, BarChart3, Search, GitBranch, CheckSquare, Eye, EyeOff, LayoutGrid, Menu, ChevronDown, User, CreditCard, FolderDown, HelpCircle, Share2, Copy, ExternalLink, Trash2, RefreshCw } from "lucide-react";
 import { Group, Panel, Separator } from "react-resizable-panels";
 import JSZip from "jszip";
 import { VirtualFile, ChatMessage, AIConfig, Template, Snapshot } from "./types";
@@ -83,6 +83,13 @@ body {
   }
 ];
 
+export interface ShareLink {
+  id: string;
+  url: string;
+  timestamp: string;
+  fileCount: number;
+}
+
 export default function App() {
   const [files, setFiles] = useState<VirtualFile[]>(() => {
     const saved = localStorage.getItem("virtual_workspace_files");
@@ -127,6 +134,16 @@ export default function App() {
   const [compareMessage, setCompareMessage] = useState<ChatMessage | null>(null);
 
   const [showLegalModal, setShowLegalModal] = useState(false);
+
+  // Sharing & Deployment states
+  const [sharedLinks, setSharedLinks] = useState<ShareLink[]>(() => {
+    const saved = localStorage.getItem("mycanvaslab_shared_links");
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [isSharing, setIsSharing] = useState(false);
+  const [latestShareUrl, setLatestShareUrl] = useState<string | null>(null);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [copySuccess, setCopySuccess] = useState(false);
 
   // Sync virtual files to localstorage
   useEffect(() => {
@@ -194,6 +211,50 @@ export default function App() {
     } finally {
       setIsZipping(false);
     }
+  };
+
+  const handleShareProject = async () => {
+    if (isSharing) return;
+    setIsSharing(true);
+    setLatestShareUrl(null);
+    setShowShareModal(true);
+    setCopySuccess(false);
+
+    try {
+      // Simulate real API deployment call with a timeout
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      const mockId = "share-" + Math.random().toString(36).substring(2, 10).toUpperCase();
+      const mockUrl = `https://mycanvaslab-sandbox.live/share/${mockId}`;
+      
+      const newShare: ShareLink = {
+        id: mockId,
+        url: mockUrl,
+        timestamp: new Date().toLocaleDateString() + " " + new Date().toLocaleTimeString().substring(0, 5),
+        fileCount: files.length,
+      };
+
+      const updated = [newShare, ...sharedLinks];
+      setSharedLinks(updated);
+      localStorage.setItem("mycanvaslab_shared_links", JSON.stringify(updated));
+      setLatestShareUrl(mockUrl);
+    } catch (err) {
+      console.error("Failed to generate shareable link", err);
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
+  const handleDeleteShareLink = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const updated = sharedLinks.filter((link) => link.id !== id);
+    setSharedLinks(updated);
+    localStorage.setItem("mycanvaslab_shared_links", JSON.stringify(updated));
+  };
+
+  const handleCopyLink = (url: string) => {
+    navigator.clipboard.writeText(url);
+    setCopySuccess(true);
+    setTimeout(() => setCopySuccess(false), 2000);
   };
 
   const handleSelectFile = (path: string) => {
@@ -298,7 +359,7 @@ export default function App() {
         </div>
 
         {/* Workspace Navigation Tabs with green highlights & ghost hamburger dropdown */}
-        <nav className="flex items-center gap-1.5 p-1 bg-zinc-950/60 rounded-xl border border-[#1ae854]/12 shrink-0 relative select-none">
+        <nav className="flex items-center gap-1.5 p-1 bg-zinc-950/60 rounded-xl border border-zinc-800 shrink-0 relative select-none">
           <button
             onClick={() => {
               setActiveTab("workspace");
@@ -307,10 +368,10 @@ export default function App() {
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition cursor-pointer whitespace-nowrap ${
               activeTab === "workspace"
                 ? "bg-[#1ae854]/15 text-[#1ae854] border border-[#1ae854]/30 shadow-sm shadow-[#1ae854]/10"
-                : "text-zinc-500 hover:text-zinc-300"
+                : "text-zinc-300 hover:text-white"
             }`}
           >
-            <Code className="h-3.5 w-3.5" />
+            <Code className={`h-3.5 w-3.5 ${activeTab === "workspace" ? "text-[#1ae854]" : "text-zinc-400"}`} />
             Workspace
           </button>
 
@@ -322,10 +383,10 @@ export default function App() {
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition cursor-pointer whitespace-nowrap ${
               activeTab === "members"
                 ? "bg-[#1ae854]/15 text-[#1ae854] border border-[#1ae854]/30 shadow-sm shadow-[#1ae854]/10"
-                : "text-zinc-500 hover:text-zinc-300"
+                : "text-zinc-300 hover:text-white"
             }`}
           >
-            <User className="h-3.5 w-3.5 text-emerald-400" />
+            <User className={`h-3.5 w-3.5 ${activeTab === "members" ? "text-[#1ae854]" : "text-zinc-400"}`} />
             Members Portal
           </button>
 
@@ -337,10 +398,10 @@ export default function App() {
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition cursor-pointer whitespace-nowrap ${
               activeTab === "pricing"
                 ? "bg-[#1ae854]/15 text-[#1ae854] border border-[#1ae854]/30 shadow-sm shadow-[#1ae854]/10"
-                : "text-zinc-500 hover:text-zinc-300"
+                : "text-zinc-300 hover:text-white"
             }`}
           >
-            <CreditCard className="h-3.5 w-3.5 text-[#1ae854]" />
+            <CreditCard className={`h-3.5 w-3.5 ${activeTab === "pricing" ? "text-[#1ae854]" : "text-zinc-400"}`} />
             Pricing Plans
           </button>
 
@@ -349,9 +410,9 @@ export default function App() {
               setShowLegalModal(true);
               setShowGhostDropdown(false);
             }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition cursor-pointer whitespace-nowrap text-zinc-500 hover:text-zinc-300 hover:bg-[#1ae854]/5 border border-transparent hover:border-[#1ae854]/10"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition cursor-pointer whitespace-nowrap text-zinc-300 hover:text-white hover:bg-zinc-900 border border-transparent hover:border-zinc-800"
           >
-            <HelpCircle className="h-3.5 w-3.5 text-[#1ae854]" />
+            <HelpCircle className="h-3.5 w-3.5 text-zinc-400" />
             Help & Legal
           </button>
 
@@ -362,7 +423,7 @@ export default function App() {
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider transition cursor-pointer whitespace-nowrap border ${
                 activeTab !== "workspace" && activeTab !== "members" && activeTab !== "pricing"
                   ? "bg-[#1ae854]/15 text-[#1ae854] border-[#1ae854]/35"
-                  : "bg-transparent text-zinc-500 hover:text-zinc-300 border-transparent hover:bg-zinc-900/40"
+                  : "bg-transparent text-zinc-300 hover:text-zinc-100 border-transparent hover:bg-zinc-900/40"
               }`}
             >
               <Menu className="h-3.5 w-3.5" />
@@ -536,7 +597,7 @@ export default function App() {
                 setShowPreview(true);
                 setShowAIChat(false);
               }}
-              className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded border border-zinc-800 bg-black/40 text-zinc-400 hover:text-[#1ae854] hover:border-[#1ae854]/30 transition"
+              className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded border border-zinc-800 bg-black/40 text-zinc-300 hover:text-white hover:border-zinc-700 transition"
               title="Focus exclusively on the 3 primary development columns"
             >
               📐 3 Columns Layout
@@ -548,7 +609,7 @@ export default function App() {
                 setShowPreview(true);
                 setShowAIChat(true);
               }}
-              className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded border border-zinc-800 bg-black/40 text-zinc-400 hover:text-[#1ae854] hover:border-[#1ae854]/30 transition"
+              className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded border border-zinc-800 bg-black/40 text-zinc-300 hover:text-white hover:border-zinc-700 transition"
               title="Show all sections including the AI Pipeline assistant"
             >
               🖥️ Show All Columns
@@ -559,10 +620,10 @@ export default function App() {
             {/* Individual Toggles with hot green indicators */}
             <button
               onClick={() => setShowExplorer(!showExplorer)}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wider transition border ${
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wider transition border cursor-pointer ${
                 showExplorer
                   ? "bg-[#1ae854]/10 text-[#1ae854] border-[#1ae854]/25"
-                  : "bg-black/20 text-zinc-500 border-zinc-900"
+                  : "bg-black/20 text-zinc-300 border-zinc-850 hover:text-white hover:border-zinc-700"
               }`}
             >
               <span className={`w-1.5 h-1.5 rounded-full ${showExplorer ? "bg-[#1ae854]" : "bg-zinc-700"}`} />
@@ -570,13 +631,13 @@ export default function App() {
             </button>
 
             {/* Center Panel Layout Mode Toggles */}
-            <div className="flex items-center gap-0.5 bg-black/60 p-0.5 rounded-lg border border-zinc-800">
+            <div className="flex items-center gap-0.5 bg-black/60 p-0.5 rounded-lg border border-zinc-850">
               <button
                 onClick={() => handleToggleLayout("code")}
                 className={`px-2 py-1 text-[10px] font-bold uppercase tracking-wider rounded transition-all cursor-pointer ${
                   showCode && !showPreview
                     ? "bg-[#1ae854]/15 text-[#1ae854] border border-[#1ae854]/30 shadow-sm"
-                    : "text-zinc-500 hover:text-zinc-300 border border-transparent"
+                    : "text-zinc-300 hover:text-white border border-transparent"
                 }`}
               >
                 📝 Code
@@ -586,7 +647,7 @@ export default function App() {
                 className={`px-2 py-1 text-[10px] font-bold uppercase tracking-wider rounded transition-all cursor-pointer ${
                   showCode && showPreview
                     ? "bg-[#1ae854]/15 text-[#1ae854] border border-[#1ae854]/30 shadow-sm"
-                    : "text-zinc-500 hover:text-zinc-300 border border-transparent"
+                    : "text-zinc-300 hover:text-white border border-transparent"
                 }`}
               >
                 ↔️ Split
@@ -596,7 +657,7 @@ export default function App() {
                 className={`px-2 py-1 text-[10px] font-bold uppercase tracking-wider rounded transition-all cursor-pointer ${
                   !showCode && showPreview
                     ? "bg-[#1ae854]/15 text-[#1ae854] border border-[#1ae854]/30 shadow-sm"
-                    : "text-zinc-500 hover:text-zinc-300 border border-transparent"
+                    : "text-zinc-300 hover:text-white border border-transparent"
                 }`}
               >
                 👁️ Preview
@@ -605,10 +666,10 @@ export default function App() {
 
             <button
               onClick={() => setShowAIChat(!showAIChat)}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wider transition border ${
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wider transition border cursor-pointer ${
                 showAIChat
                   ? "bg-[#1ae854]/10 text-[#1ae854] border-[#1ae854]/25"
-                  : "bg-black/20 text-zinc-500 border-zinc-900"
+                  : "bg-black/20 text-zinc-300 border-zinc-850 hover:text-white hover:border-zinc-700"
               }`}
             >
               <span className={`w-1.5 h-1.5 rounded-full ${showAIChat ? "bg-[#1ae854]" : "bg-zinc-700"}`} />
@@ -618,14 +679,23 @@ export default function App() {
             <span className="text-zinc-700 mx-1">|</span>
 
             <button
+              onClick={handleShareProject}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded text-[10px] font-black uppercase tracking-wider transition border cursor-pointer bg-zinc-900 text-[#1ae854] border-[#1ae854]/20 hover:bg-[#1ae854]/10 hover:border-[#1ae854]/40"
+              title="Deploy snapshot to temporary shareable sandbox link"
+            >
+              <Share2 className="h-3.5 w-3.5" />
+              <span>Share Project</span>
+            </button>
+
+            <button
               onClick={handleDownloadZip}
               disabled={isZipping}
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-[10px] font-black uppercase tracking-wider transition border cursor-pointer ${
                 zipSuccess
-                  ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40"
+                  ? "bg-[#1ae854]/15 text-[#1ae854] border-[#1ae854]/30"
                   : isZipping
                     ? "bg-zinc-850 text-zinc-600 border-zinc-800"
-                    : "bg-[#1ae854]/10 text-[#1ae854] border-[#1ae854]/25 hover:bg-[#1ae854]/20 hover:border-[#1ae854]/40"
+                    : "bg-zinc-900 text-zinc-300 border-zinc-800 hover:bg-zinc-850 hover:text-white hover:border-zinc-700"
               }`}
               title="Download your entire virtual workspace as a standalone ZIP archive"
             >
@@ -825,6 +895,137 @@ export default function App() {
         isOpen={showLegalModal}
         onClose={() => setShowLegalModal(false)}
       />
+
+      {/* Share Sandbox Modal */}
+      {showShareModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-zinc-950 border border-[#1ae854]/25 rounded-xl w-full max-w-lg overflow-hidden shadow-2xl neon-glow">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-[#1ae854]/12 bg-black/40">
+              <div className="flex items-center gap-2">
+                <Share2 className="h-4 w-4 text-[#1ae854]" />
+                <h3 className="text-sm font-bold tracking-wider text-white uppercase">Share Sandbox Workspace</h3>
+              </div>
+              <button
+                onClick={() => setShowShareModal(false)}
+                className="text-zinc-500 hover:text-white transition text-xs font-bold uppercase tracking-widest bg-zinc-900 border border-zinc-800 hover:border-zinc-700 px-2.5 py-1 rounded cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-5 space-y-5">
+              {isSharing ? (
+                <div className="py-6 flex flex-col items-center justify-center space-y-3">
+                  <RefreshCw className="h-8 w-8 text-[#1ae854] animate-spin" />
+                  <div className="text-center space-y-1">
+                    <p className="text-xs font-bold text-[#1ae854] tracking-wide uppercase">Compiling & Bundling State...</p>
+                    <p className="text-[10px] text-zinc-500 font-mono">Mocking deployment trigger to sandbox edge server</p>
+                  </div>
+                </div>
+              ) : latestShareUrl ? (
+                <div className="space-y-4">
+                  <div className="bg-[#1ae854]/5 border border-[#1ae854]/20 p-4 rounded-lg space-y-2">
+                    <p className="text-[10px] font-bold text-[#1ae854] tracking-wider uppercase">🎉 Sandbox Compiled & Deployed Successfully!</p>
+                    <p className="text-xs text-zinc-400">
+                      Your current workspace files ({files.length} active files) are bundled into a temporary in-memory instance:
+                    </p>
+                    <div className="flex gap-2 mt-2">
+                      <input
+                        type="text"
+                        value={latestShareUrl}
+                        readOnly
+                        className="flex-1 bg-black text-zinc-300 font-mono text-xs border border-zinc-800 rounded px-3 py-1.5 focus:outline-none"
+                      />
+                      <button
+                        onClick={() => handleCopyLink(latestShareUrl)}
+                        className="px-3 bg-[#1ae854] text-black font-bold text-xs rounded hover:bg-[#15b240] transition flex items-center gap-1 cursor-pointer"
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                        <span>{copySuccess ? "Copied!" : "Copy"}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <a
+                      href={latestShareUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-xs text-[#1ae854] hover:underline"
+                    >
+                      <span>Open live mock app</span>
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </div>
+                </div>
+              ) : null}
+
+              {/* History list of shared links */}
+              <div className="space-y-2">
+                <h4 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest border-b border-zinc-900 pb-1.5 flex justify-between items-center">
+                  <span>Previously Shared Deployments</span>
+                  <span className="text-[9px] font-mono text-zinc-500">{sharedLinks.length} total</span>
+                </h4>
+
+                {sharedLinks.length === 0 ? (
+                  <div className="text-center py-4 bg-zinc-900/30 border border-zinc-900 rounded-lg text-zinc-600 text-[10px] font-mono">
+                    No active share links. Click 'Share Project' above to create one.
+                  </div>
+                ) : (
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                    {sharedLinks.map((link) => (
+                      <div
+                        key={link.id}
+                        className="flex items-center justify-between bg-black/60 hover:bg-black border border-zinc-900 hover:border-zinc-800 rounded p-2 text-[11px] transition group"
+                      >
+                        <div className="min-w-0 flex-1 pr-3">
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            <span className="font-mono text-[10px] text-zinc-300 truncate max-w-[180px]">
+                              {link.url}
+                            </span>
+                            <span className="text-[8px] bg-zinc-800 text-zinc-400 px-1 rounded font-mono shrink-0">
+                              {link.fileCount} files
+                            </span>
+                          </div>
+                          <p className="text-[9px] text-zinc-500 font-mono">{link.timestamp}</p>
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            onClick={() => handleCopyLink(link.url)}
+                            className="p-1.5 bg-zinc-900 border border-zinc-800 rounded text-zinc-400 hover:text-white hover:border-zinc-700 transition cursor-pointer"
+                            title="Copy url"
+                          >
+                            <Copy className="h-3 w-3" />
+                          </button>
+                          <a
+                            href={link.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1.5 bg-zinc-900 border border-zinc-800 rounded text-[#1ae854] hover:bg-[#1ae854]/10 hover:border-[#1ae854]/30 transition cursor-pointer"
+                            title="Visit sandbox"
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                          <button
+                            onClick={(e) => handleDeleteShareLink(link.id, e)}
+                            className="p-1.5 bg-zinc-900 border border-zinc-800 rounded text-zinc-500 hover:text-red-400 hover:border-red-950 transition cursor-pointer"
+                            title="Delete from history"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

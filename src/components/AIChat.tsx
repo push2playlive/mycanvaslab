@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Send, Cpu, Bot, Sparkles, AlertTriangle, Check, RefreshCw, Layers, Palette, Code, CheckCircle2, ArrowRight, Paintbrush } from "lucide-react";
-import { ChatMessage, VirtualFile, AIConfig } from "../types";
+import { Send, Cpu, Bot, Sparkles, AlertTriangle, Check, RefreshCw, Layers, Palette, Code, CheckCircle2, ArrowRight, Paintbrush, Plus, Trash2, Edit2, History, ChevronDown } from "lucide-react";
+import { ChatMessage, VirtualFile, AIConfig, ChatSession } from "../types";
 
 interface AIChatProps {
   files: VirtualFile[];
@@ -23,8 +23,37 @@ export const AIChat: React.FC<AIChatProps> = ({
     return (localStorage.getItem("active_agent_stage") as StageId) || "purpose";
   });
 
+  const [sessions, setSessions] = useState<ChatSession[]>(() => {
+    const saved = localStorage.getItem("chat_sessions_list");
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error("Failed to parse sessions", e);
+      }
+    }
+    return [];
+  });
+
+  const [currentSessionId, setCurrentSessionId] = useState<string>(() => {
+    return localStorage.getItem("current_chat_session_id") || "default-session";
+  });
+
+  const [showSessionDropdown, setShowSessionDropdown] = useState(false);
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [editSessionName, setEditSessionName] = useState("");
+
   // Three separate chat histories for the 3 stages
   const [purposeMessages, setPurposeMessages] = useState<ChatMessage[]>(() => {
+    const savedSessions = localStorage.getItem("chat_sessions_list");
+    const activeId = localStorage.getItem("current_chat_session_id") || "default-session";
+    if (savedSessions) {
+      try {
+        const parsed: ChatSession[] = JSON.parse(savedSessions);
+        const match = parsed.find(s => s.id === activeId);
+        if (match) return match.purposeMessages;
+      } catch {}
+    }
     const saved = localStorage.getItem("chat_messages_purpose");
     return saved ? JSON.parse(saved) : [
       {
@@ -37,6 +66,15 @@ export const AIChat: React.FC<AIChatProps> = ({
   });
 
   const [codeMessages, setCodeMessages] = useState<ChatMessage[]>(() => {
+    const savedSessions = localStorage.getItem("chat_sessions_list");
+    const activeId = localStorage.getItem("current_chat_session_id") || "default-session";
+    if (savedSessions) {
+      try {
+        const parsed: ChatSession[] = JSON.parse(savedSessions);
+        const match = parsed.find(s => s.id === activeId);
+        if (match) return match.codeMessages;
+      } catch {}
+    }
     const saved = localStorage.getItem("chat_messages_code");
     return saved ? JSON.parse(saved) : [
       {
@@ -49,6 +87,15 @@ export const AIChat: React.FC<AIChatProps> = ({
   });
 
   const [finisherMessages, setFinisherMessages] = useState<ChatMessage[]>(() => {
+    const savedSessions = localStorage.getItem("chat_sessions_list");
+    const activeId = localStorage.getItem("current_chat_session_id") || "default-session";
+    if (savedSessions) {
+      try {
+        const parsed: ChatSession[] = JSON.parse(savedSessions);
+        const match = parsed.find(s => s.id === activeId);
+        if (match) return match.finisherMessages;
+      } catch {}
+    }
     const saved = localStorage.getItem("chat_messages_finisher");
     return saved ? JSON.parse(saved) : [
       {
@@ -61,9 +108,57 @@ export const AIChat: React.FC<AIChatProps> = ({
   });
 
   // Structured specification wizard state (helps isolate layout & functions)
-  const [specPurpose, setSpecPurpose] = useState(() => localStorage.getItem("spec_purpose") || "");
-  const [specColors, setSpecColors] = useState(() => localStorage.getItem("spec_colors") || "");
-  const [specFunctions, setSpecFunctions] = useState(() => localStorage.getItem("spec_functions") || "");
+  const [specPurpose, setSpecPurpose] = useState(() => {
+    const savedSessions = localStorage.getItem("chat_sessions_list");
+    const activeId = localStorage.getItem("current_chat_session_id") || "default-session";
+    if (savedSessions) {
+      try {
+        const parsed: ChatSession[] = JSON.parse(savedSessions);
+        const match = parsed.find(s => s.id === activeId);
+        if (match) return match.specPurpose;
+      } catch {}
+    }
+    return localStorage.getItem("spec_purpose") || "";
+  });
+
+  const [specColors, setSpecColors] = useState(() => {
+    const savedSessions = localStorage.getItem("chat_sessions_list");
+    const activeId = localStorage.getItem("current_chat_session_id") || "default-session";
+    if (savedSessions) {
+      try {
+        const parsed: ChatSession[] = JSON.parse(savedSessions);
+        const match = parsed.find(s => s.id === activeId);
+        if (match) return match.specColors;
+      } catch {}
+    }
+    return localStorage.getItem("spec_colors") || "";
+  });
+
+  const [specFunctions, setSpecFunctions] = useState(() => {
+    const savedSessions = localStorage.getItem("chat_sessions_list");
+    const activeId = localStorage.getItem("current_chat_session_id") || "default-session";
+    if (savedSessions) {
+      try {
+        const parsed: ChatSession[] = JSON.parse(savedSessions);
+        const match = parsed.find(s => s.id === activeId);
+        if (match) return match.specFunctions;
+      } catch {}
+    }
+    return localStorage.getItem("spec_functions") || "";
+  });
+
+  const [customSystemPrompt, setCustomSystemPrompt] = useState(() => {
+    const savedSessions = localStorage.getItem("chat_sessions_list");
+    const activeId = localStorage.getItem("current_chat_session_id") || "default-session";
+    if (savedSessions) {
+      try {
+        const parsed: ChatSession[] = JSON.parse(savedSessions);
+        const match = parsed.find(s => s.id === activeId);
+        if (match) return match.customSystemPrompt || "";
+      } catch {}
+    }
+    return localStorage.getItem("custom_system_prompt") || "";
+  });
 
   const [inputValue, setInputValue] = useState("");
   const [loading, setLoading] = useState(false);
@@ -71,11 +166,91 @@ export const AIChat: React.FC<AIChatProps> = ({
 
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
+  // Migrate old messages if needed on initial mount
+  useEffect(() => {
+    const saved = localStorage.getItem("chat_sessions_list");
+    if (!saved || JSON.parse(saved).length === 0) {
+      const initialSession: ChatSession = {
+        id: "default-session",
+        name: "Current Prototype Chat",
+        timestamp: new Date().toLocaleDateString() + " " + new Date().toLocaleTimeString().substring(0, 5),
+        purposeMessages,
+        codeMessages,
+        finisherMessages,
+        specPurpose,
+        specColors,
+        specFunctions,
+        customSystemPrompt,
+      };
+      const initialList = [initialSession];
+      setSessions(initialList);
+      setCurrentSessionId("default-session");
+      localStorage.setItem("chat_sessions_list", JSON.stringify(initialList));
+      localStorage.setItem("current_chat_session_id", "default-session");
+    }
+  }, []);
+
   // Sync state to localStorage
   useEffect(() => {
     localStorage.setItem("active_agent_stage", activeStage);
   }, [activeStage]);
 
+  // Auto-sync states of the active session to the sessions list
+  useEffect(() => {
+    if (!currentSessionId) return;
+    setSessions((prevSessions) => {
+      const targetSession = prevSessions.find(s => s.id === currentSessionId);
+      if (
+        targetSession &&
+        targetSession.purposeMessages === purposeMessages &&
+        targetSession.codeMessages === codeMessages &&
+        targetSession.finisherMessages === finisherMessages &&
+        targetSession.specPurpose === specPurpose &&
+        targetSession.specColors === specColors &&
+        targetSession.specFunctions === specFunctions &&
+        targetSession.customSystemPrompt === customSystemPrompt
+      ) {
+        return prevSessions;
+      }
+
+      const updated = prevSessions.map((s) => {
+        if (s.id === currentSessionId) {
+          let newName = s.name;
+          if (s.name.startsWith("Conversation") || s.name === "Current Prototype Chat") {
+            const firstUserMsg = purposeMessages.find(m => m.role === "user") || 
+                                 codeMessages.find(m => m.role === "user") || 
+                                 finisherMessages.find(m => m.role === "user");
+            if (firstUserMsg) {
+              newName = firstUserMsg.message.substring(0, 24) + (firstUserMsg.message.length > 24 ? "..." : "");
+            }
+          }
+
+          return {
+            ...s,
+            name: newName,
+            purposeMessages,
+            codeMessages,
+            finisherMessages,
+            specPurpose,
+            specColors,
+            specFunctions,
+            customSystemPrompt,
+          };
+        }
+        return s;
+      });
+
+      localStorage.setItem("chat_sessions_list", JSON.stringify(updated));
+      return updated;
+    });
+  }, [purposeMessages, codeMessages, finisherMessages, specPurpose, specColors, specFunctions, customSystemPrompt, currentSessionId]);
+
+  // Sync back-compat states individually
+  useEffect(() => {
+    localStorage.setItem("custom_system_prompt", customSystemPrompt);
+  }, [customSystemPrompt]);
+
+  // Sync back-compat states individually
   useEffect(() => {
     localStorage.setItem("chat_messages_purpose", JSON.stringify(purposeMessages));
   }, [purposeMessages]);
@@ -111,6 +286,147 @@ export const AIChat: React.FC<AIChatProps> = ({
     } else {
       setFinisherMessages(updater);
     }
+  };
+
+  const handleSwitchSession = (sessionId: string) => {
+    const target = sessions.find((s) => s.id === sessionId);
+    if (!target) return;
+
+    setCurrentSessionId(sessionId);
+    localStorage.setItem("current_chat_session_id", sessionId);
+
+    setPurposeMessages(target.purposeMessages);
+    setCodeMessages(target.codeMessages);
+    setFinisherMessages(target.finisherMessages);
+    setSpecPurpose(target.specPurpose);
+    setSpecColors(target.specColors);
+    setSpecFunctions(target.specFunctions);
+    setCustomSystemPrompt(target.customSystemPrompt || "");
+  };
+
+  const handleCreateNewSession = () => {
+    const newId = "session-" + Date.now();
+    const newSession: ChatSession = {
+      id: newId,
+      name: `Conversation ${sessions.length + 1}`,
+      timestamp: new Date().toLocaleDateString() + " " + new Date().toLocaleTimeString().substring(0, 5),
+      purposeMessages: [
+        {
+          id: "purpose-welcome",
+          role: "assistant",
+          message: "Hello! I am your Purpose Designer Agent. 🎨\n\nMy job is to talk to you and isolate the main purpose of your application, narrow down a beautiful color layout, and map out the core functions before writing any code. Let's talk! What would you like to build today?",
+          timestamp: new Date().toLocaleTimeString().split(" ")[0],
+        }
+      ],
+      codeMessages: [
+        {
+          id: "code-welcome",
+          role: "assistant",
+          message: "Code Writer Agent at your service! 💻\n\nOnce the Purpose Designer has refined your vision into a structured specification, I will take over to write complete, clean, and fully-functional code files in the workspace. Let me know what to write or use the brief below to build your core files!",
+          timestamp: new Date().toLocaleTimeString().split(" ")[0],
+        }
+      ],
+      finisherMessages: [
+        {
+          id: "finisher-welcome",
+          role: "assistant",
+          message: "Greetings! I am your Finisher Agent. ✨\n\nI am here to polish, style, and perfect your application to make it look stunning. I'll add gorgeous entrance and hover animations, optimize typography, verify responsive layouts, and fine-tune spacing to make it flow effortlessly. Let me know what visual or operational details to refine!",
+          timestamp: new Date().toLocaleTimeString().split(" ")[0],
+        }
+      ],
+      specPurpose: "",
+      specColors: "",
+      specFunctions: "",
+      customSystemPrompt: "",
+    };
+
+    const updatedSessions = [...sessions, newSession];
+    setSessions(updatedSessions);
+    setCurrentSessionId(newId);
+    localStorage.setItem("chat_sessions_list", JSON.stringify(updatedSessions));
+    localStorage.setItem("current_chat_session_id", newId);
+
+    setPurposeMessages(newSession.purposeMessages);
+    setCodeMessages(newSession.codeMessages);
+    setFinisherMessages(newSession.finisherMessages);
+    setSpecPurpose("");
+    setSpecColors("");
+    setSpecFunctions("");
+    setCustomSystemPrompt("");
+  };
+
+  const handleDeleteSession = (sessionId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (sessions.length <= 1) {
+      alert("Cannot delete the only remaining session. Resetting its messages instead!");
+      handleResetCurrentSession();
+      return;
+    }
+
+    const filtered = sessions.filter((s) => s.id !== sessionId);
+    setSessions(filtered);
+    localStorage.setItem("chat_sessions_list", JSON.stringify(filtered));
+
+    if (currentSessionId === sessionId) {
+      const nextSession = filtered[0];
+      handleSwitchSession(nextSession.id);
+    }
+  };
+
+  const handleResetCurrentSession = () => {
+    const welcomePurpose: ChatMessage[] = [
+      {
+        id: "purpose-welcome",
+        role: "assistant",
+        message: "Hello! I am your Purpose Designer Agent. 🎨\n\nMy job is to talk to you and isolate the main purpose of your application, narrow down a beautiful color layout, and map out the core functions before writing any code. Let's talk! What would you like to build today?",
+        timestamp: new Date().toLocaleTimeString().split(" ")[0],
+      }
+    ];
+    const welcomeCode: ChatMessage[] = [
+      {
+        id: "code-welcome",
+        role: "assistant",
+        message: "Code Writer Agent at your service! 💻\n\nOnce the Purpose Designer has refined your vision into a structured specification, I will take over to write complete, clean, and fully-functional code files in the workspace. Let me know what to write or use the brief below to build your core files!",
+        timestamp: new Date().toLocaleTimeString().split(" ")[0],
+      }
+    ];
+    const welcomeFinisher: ChatMessage[] = [
+      {
+        id: "finisher-welcome",
+        role: "assistant",
+        message: "Greetings! I am your Finisher Agent. ✨\n\nI am here to polish, style, and perfect your application to make it look stunning. I'll add gorgeous entrance and hover animations, optimize typography, verify responsive layouts, and fine-tune spacing to make it flow effortlessly. Let me know what visual or operational details to refine!",
+        timestamp: new Date().toLocaleTimeString().split(" ")[0],
+      }
+    ];
+
+    setPurposeMessages(welcomePurpose);
+    setCodeMessages(welcomeCode);
+    setFinisherMessages(welcomeFinisher);
+    setSpecPurpose("");
+    setSpecColors("");
+    setSpecFunctions("");
+    setCustomSystemPrompt("");
+  };
+
+  const startRenameSession = (id: string, name: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingSessionId(id);
+    setEditSessionName(name);
+  };
+
+  const saveRenameSession = (id: string) => {
+    if (!editSessionName.trim()) return;
+    setSessions((prev) => {
+      const updated = prev.map((s) => {
+        if (s.id === id) {
+          return { ...s, name: editSessionName.trim() };
+        }
+        return s;
+      });
+      localStorage.setItem("chat_sessions_list", JSON.stringify(updated));
+      return updated;
+    });
+    setEditingSessionId(null);
   };
 
   const handleSendMessage = async (e?: React.FormEvent, customText?: string) => {
@@ -170,7 +486,12 @@ Specifically look at adding:
 Keep files completely intact, updating details seamlessly.`;
       }
 
-      const fullPromptWithDirective = `${directive}\n\nUser request: ${promptText}`;
+      let customSystemPromptContext = "";
+      if (customSystemPrompt.trim()) {
+        customSystemPromptContext = `[CUSTOM USER SYSTEM PROMPT]\n${customSystemPrompt.trim()}\n\n`;
+      }
+
+      const fullPromptWithDirective = `${customSystemPromptContext}${directive}\n\nUser request: ${promptText}`;
 
       if (config.provider === "ollama") {
         const response = await fetch(config.ollamaUrl, {
@@ -339,6 +660,103 @@ Let's begin writing the application code based on this finalized specifications 
           </span>
         </div>
 
+        {/* Session Selector & Manager Bar */}
+        <div className="flex items-center gap-1.5 bg-black/40 p-1 rounded-lg border border-zinc-800/80 relative">
+          <History className="h-3.5 w-3.5 text-zinc-400 shrink-0 ml-1" />
+          <div className="flex-1 min-w-0">
+            {sessions.length > 0 && (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowSessionDropdown(!showSessionDropdown)}
+                  className="w-full flex items-center justify-between text-left px-2 py-1 bg-zinc-950/80 border border-zinc-800/60 rounded text-[10px] text-zinc-300 font-bold hover:text-white hover:border-zinc-700 transition cursor-pointer"
+                >
+                  <span className="truncate">
+                    {sessions.find((s) => s.id === currentSessionId)?.name || "Current Session"}
+                  </span>
+                  <ChevronDown className="h-3 w-3 text-zinc-500 shrink-0 ml-1" />
+                </button>
+
+                {showSessionDropdown && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-zinc-950 border border-zinc-800 rounded-lg shadow-xl z-50 max-h-[220px] overflow-y-auto p-1 space-y-0.5">
+                    {sessions.map((s) => (
+                      <div
+                        key={s.id}
+                        onClick={() => {
+                          handleSwitchSession(s.id);
+                          setShowSessionDropdown(false);
+                        }}
+                        className={`flex items-center justify-between px-2 py-1.5 rounded text-[10px] cursor-pointer transition ${
+                          s.id === currentSessionId
+                            ? "bg-[#1ae854]/10 text-[#1ae854] font-black border border-[#1ae854]/20"
+                            : "text-zinc-400 hover:text-white hover:bg-zinc-900/60"
+                        }`}
+                      >
+                        {editingSessionId === s.id ? (
+                          <input
+                            type="text"
+                            value={editSessionName}
+                            onChange={(e) => setEditSessionName(e.target.value)}
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                saveRenameSession(s.id);
+                              }
+                            }}
+                            className="bg-black text-white px-1 py-0.5 border border-[#1ae854]/30 rounded text-[10px] focus:outline-none w-full mr-2"
+                            autoFocus
+                          />
+                        ) : (
+                          <span className="truncate mr-2 max-w-[130px]">{s.name}</span>
+                        )}
+
+                        <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                          {editingSessionId === s.id ? (
+                            <button
+                              type="button"
+                              onClick={() => saveRenameSession(s.id)}
+                              className="p-1 hover:bg-zinc-800 rounded text-emerald-400 cursor-pointer"
+                              title="Save name"
+                            >
+                              <Check className="h-3 w-3" />
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={(e) => startRenameSession(s.id, s.name, e)}
+                              className="p-1 hover:bg-zinc-800 rounded text-zinc-500 hover:text-zinc-300 cursor-pointer"
+                              title="Rename session"
+                            >
+                              <Edit2 className="h-3 w-3" />
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={(e) => handleDeleteSession(s.id, e)}
+                            className="p-1 hover:bg-red-950/40 rounded text-zinc-500 hover:text-red-400 transition cursor-pointer"
+                            title="Delete session"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={handleCreateNewSession}
+            className="p-1 bg-[#1ae854]/10 hover:bg-[#1ae854]/20 border border-[#1ae854]/20 rounded text-[#1ae854] transition cursor-pointer flex items-center justify-center mr-1"
+            title="Start New Chat Session"
+          >
+            <Plus className="h-3 w-3" />
+          </button>
+        </div>
+
         {/* Horizontal 3-Stage Progress Nav */}
         <div className="grid grid-cols-3 gap-1 bg-[#010301] p-0.5 rounded-lg border border-[#1ae854]/10">
           <button
@@ -346,10 +764,10 @@ Let's begin writing the application code based on this finalized specifications 
             className={`py-2 px-1 rounded text-[9px] font-black uppercase tracking-wider transition cursor-pointer flex flex-col items-center gap-1 justify-center relative ${
               activeStage === "purpose"
                 ? "bg-[#1ae854]/10 text-[#1ae854] border border-[#1ae854]/25"
-                : "text-zinc-500 hover:text-zinc-300"
+                : "text-zinc-300 hover:text-white"
             }`}
           >
-            <Palette className="h-3 w-3" />
+            <Palette className={`h-3 w-3 ${activeStage === "purpose" ? "text-[#1ae854]" : "text-zinc-400"}`} />
             <span>1. Designer</span>
             {specPurpose && (
               <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-[#1ae854] rounded-full"></span>
@@ -360,10 +778,10 @@ Let's begin writing the application code based on this finalized specifications 
             className={`py-2 px-1 rounded text-[9px] font-black uppercase tracking-wider transition cursor-pointer flex flex-col items-center gap-1 justify-center ${
               activeStage === "code"
                 ? "bg-[#1ae854]/10 text-[#1ae854] border border-[#1ae854]/25"
-                : "text-zinc-500 hover:text-zinc-300"
+                : "text-zinc-300 hover:text-white"
             }`}
           >
-            <Code className="h-3 w-3" />
+            <Code className={`h-3 w-3 ${activeStage === "code" ? "text-[#1ae854]" : "text-zinc-400"}`} />
             <span>2. Writer</span>
           </button>
           <button
@@ -371,7 +789,7 @@ Let's begin writing the application code based on this finalized specifications 
             className={`py-2 px-1 rounded text-[9px] font-black uppercase tracking-wider transition cursor-pointer flex flex-col items-center gap-1 justify-center ${
               activeStage === "finisher"
                 ? "bg-[#1ae854]/10 text-[#1ae854] border border-[#1ae854]/25"
-                : "text-zinc-500 hover:text-zinc-300"
+                : "text-zinc-300 hover:text-white"
             }`}
           >
             <Paintbrush className="h-3 w-3" />
@@ -536,7 +954,7 @@ Let's begin writing the application code based on this finalized specifications 
             <button
               onClick={() => onChangeConfig({ ...config, provider: "gemini" })}
               className={`text-[9px] font-bold px-1.5 py-0.5 rounded transition ${
-                config.provider === "gemini" ? "text-[#1ae854] bg-[#1ae854]/10 border border-[#1ae854]/30" : "text-zinc-600 hover:text-zinc-400"
+                config.provider === "gemini" ? "text-[#1ae854] bg-[#1ae854]/10 border border-[#1ae854]/30" : "text-zinc-300 hover:text-white"
               }`}
             >
               Gemini
@@ -544,7 +962,7 @@ Let's begin writing the application code based on this finalized specifications 
             <button
               onClick={() => onChangeConfig({ ...config, provider: "openai" })}
               className={`text-[9px] font-bold px-1.5 py-0.5 rounded transition ${
-                config.provider === "openai" ? "text-[#1ae854] bg-[#1ae854]/10 border border-[#1ae854]/30" : "text-zinc-600 hover:text-zinc-400"
+                config.provider === "openai" ? "text-[#1ae854] bg-[#1ae854]/10 border border-[#1ae854]/30" : "text-zinc-300 hover:text-white"
               }`}
             >
               OpenAI
@@ -552,12 +970,28 @@ Let's begin writing the application code based on this finalized specifications 
             <button
               onClick={() => onChangeConfig({ ...config, provider: "ollama" })}
               className={`text-[9px] font-bold px-1.5 py-0.5 rounded transition ${
-                config.provider === "ollama" ? "text-[#1ae854] bg-[#1ae854]/10 border border-[#1ae854]/30" : "text-zinc-600 hover:text-zinc-400"
+                config.provider === "ollama" ? "text-[#1ae854] bg-[#1ae854]/10 border border-[#1ae854]/30" : "text-zinc-300 hover:text-white"
               }`}
             >
               Ollama
             </button>
           </div>
+        </div>
+
+        {/* Custom Session System Prompt input field */}
+        <div className="mt-1 border-t border-[#1ae854]/10 pt-1.5">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[9px] text-zinc-500 font-mono">Session System Prompt:</span>
+            {customSystemPrompt.trim() && (
+              <span className="text-[8px] bg-[#1ae854]/10 text-[#1ae854] px-1 rounded font-bold border border-[#1ae854]/20 uppercase">Active</span>
+            )}
+          </div>
+          <textarea
+            value={customSystemPrompt}
+            onChange={(e) => setCustomSystemPrompt(e.target.value)}
+            placeholder="Instruct the agent on custom behaviors, style preferences, or custom guidelines..."
+            className="w-full bg-black/60 border border-[#1ae854]/15 rounded p-1.5 text-[10px] font-mono text-zinc-200 placeholder-zinc-700 focus:outline-none focus:border-[#1ae854]/40 h-10 resize-none"
+          />
         </div>
       </div>
 

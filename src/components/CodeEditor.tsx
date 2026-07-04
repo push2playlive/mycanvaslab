@@ -67,13 +67,13 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
         </div>
 
         {/* Layout Mode Toggles */}
-        <div className="flex items-center gap-1 bg-black/60 p-0.5 rounded-lg border border-zinc-800">
+        <div className="flex items-center gap-1 bg-black/60 p-0.5 rounded-lg border border-zinc-850">
           <button
             onClick={() => onToggleLayout("code")}
-            className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded transition-all cursor-pointer ${
+            className={`px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded transition-all cursor-pointer ${
               showCode && !showPreview
                 ? "bg-[#1ae854]/15 text-[#1ae854] border border-[#1ae854]/30 shadow-sm"
-                : "text-zinc-500 hover:text-zinc-300 border border-transparent"
+                : "text-zinc-300 hover:text-white border border-transparent"
             }`}
             title="Switch to Code Only View"
           >
@@ -81,10 +81,10 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
           </button>
           <button
             onClick={() => onToggleLayout("split")}
-            className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded transition-all cursor-pointer ${
+            className={`px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded transition-all cursor-pointer ${
               showCode && showPreview
                 ? "bg-[#1ae854]/15 text-[#1ae854] border border-[#1ae854]/30 shadow-sm"
-                : "text-zinc-500 hover:text-zinc-300 border border-transparent"
+                : "text-zinc-300 hover:text-white border border-transparent"
             }`}
             title="Switch to Split View"
           >
@@ -92,10 +92,10 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
           </button>
           <button
             onClick={() => onToggleLayout("preview")}
-            className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded transition-all cursor-pointer ${
+            className={`px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded transition-all cursor-pointer ${
               !showCode && showPreview
                 ? "bg-[#1ae854]/15 text-[#1ae854] border border-[#1ae854]/30 shadow-sm"
-                : "text-zinc-500 hover:text-zinc-300 border border-transparent"
+                : "text-zinc-300 hover:text-white border border-transparent"
             }`}
             title="Switch to Preview Only View"
           >
