@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { VirtualFile, WorkspaceStats, AIConfig, Snapshot } from "../types";
-import { FolderOpen, FileText, Code2, Cpu, BarChart2, Key, Bot, CheckCircle2, Sliders, Trash2, ShieldAlert } from "lucide-react";
+import { FolderOpen, FileText, Code2, Cpu, BarChart2, Key, Bot, CheckCircle2, Sliders, Trash2, ShieldAlert, Lock, Unlock } from "lucide-react";
 import { ProjectStatistics } from "./ProjectStatistics";
 
 interface DashboardProps {
@@ -17,6 +17,26 @@ export const Dashboard: React.FC<DashboardProps> = ({ files, config, onChangeCon
   const [ollamaModel, setOllamaModel] = useState(config.ollamaModel);
   const [saved, setSaved] = useState(false);
 
+  // Admin Login Credentials & Session state
+  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(() => {
+    return localStorage.getItem("is_admin_logged_in") === "true";
+  });
+  const [adminEmail, setAdminEmail] = useState(() => {
+    return localStorage.getItem("admin_email") || "nexusos@commandnexus.net";
+  });
+  const [adminPassword, setAdminPassword] = useState(() => {
+    return localStorage.getItem("admin_password") || "admin1234567";
+  });
+
+  const [loginEmailInput, setLoginEmailInput] = useState("");
+  const [loginPasswordInput, setLoginPasswordInput] = useState("");
+  const [loginError, setLoginError] = useState("");
+
+  const [showChangeCreds, setShowChangeCreds] = useState(false);
+  const [newEmail, setNewEmail] = useState(adminEmail);
+  const [newPassword, setNewPassword] = useState(adminPassword);
+  const [changeSuccess, setChangeSuccess] = useState(false);
+
   // Keep local states in sync when parent config changes
   useEffect(() => {
     setGeminiKey(config.customGeminiKey);
@@ -24,6 +44,82 @@ export const Dashboard: React.FC<DashboardProps> = ({ files, config, onChangeCon
     setOllamaUrl(config.ollamaUrl);
     setOllamaModel(config.ollamaModel);
   }, [config]);
+
+  if (!isAdminLoggedIn) {
+    const handleLoginSubmit = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (loginEmailInput === adminEmail && loginPasswordInput === adminPassword) {
+        setIsAdminLoggedIn(true);
+        localStorage.setItem("is_admin_logged_in", "true");
+        setLoginError("");
+      } else {
+        setLoginError("Invalid admin credentials. Please try again.");
+      }
+    };
+
+    return (
+      <div className="min-h-[500px] flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-[#020502]/90 backdrop-blur-md border border-[#1ae854]/20 p-8 rounded-2xl shadow-2xl shadow-[#1ae854]/5 space-y-6">
+          <div className="text-center space-y-2">
+            <div className="inline-flex p-3 bg-[#1ae854]/10 border border-[#1ae854]/25 rounded-xl text-[#1ae854] mb-2 animate-pulse-soft">
+              <ShieldAlert className="h-8 w-8" />
+            </div>
+            <h2 className="text-2xl font-black tracking-tight text-white uppercase">
+              ADMIN GATEWAY
+            </h2>
+            <p className="text-xs text-zinc-400">
+              NexusOS Admin Control Panel. Enter credentials to unlock dashboard metrics & API settings.
+            </p>
+          </div>
+
+          <form onSubmit={handleLoginSubmit} className="space-y-4">
+            <div className="space-y-1">
+              <label className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider block">Admin Email</label>
+              <div className="relative">
+                <input
+                  type="email"
+                  required
+                  placeholder="admin@domain.com"
+                  value={loginEmailInput}
+                  onChange={(e) => setLoginEmailInput(e.target.value)}
+                  className="w-full bg-[#050705] border border-[#1ae854]/15 rounded-lg px-3 py-2 text-xs font-mono text-zinc-200 placeholder-zinc-700 focus:outline-none focus:border-[#1ae854] transition-colors"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider block">Password</label>
+              <input
+                type="password"
+                required
+                placeholder="••••••••"
+                value={loginPasswordInput}
+                onChange={(e) => setLoginPasswordInput(e.target.value)}
+                className="w-full bg-[#050705] border border-[#1ae854]/15 rounded-lg px-3 py-2 text-xs font-mono text-zinc-200 placeholder-zinc-700 focus:outline-none focus:border-[#1ae854] transition-colors"
+              />
+            </div>
+
+            {loginError && (
+              <p className="text-[11px] text-red-400 font-medium bg-red-950/25 border border-red-900/30 p-2.5 rounded-lg">
+                ⚠️ {loginError}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              className="w-full py-2.5 bg-[#1ae854] hover:bg-[#15cf4a] text-black font-black uppercase text-xs tracking-wider rounded-lg shadow-lg shadow-[#1ae854]/10 transition-all hover:scale-[1.01] active:scale-100 cursor-pointer text-center block"
+            >
+              UNLOCK SECURE SESSION
+            </button>
+          </form>
+
+          <div className="pt-2 text-center text-[10px] text-zinc-600 font-mono">
+            Nexus Panel V2.0 • COMMAND NEXUS SECURE ENCRYPTED
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const handleSaveKeys = (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,7 +194,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ files, config, onChangeCon
   return (
     <div className="space-y-6 text-[#ecfdf5]">
       {/* Welcome Banner */}
-      <div className="bg-[#020502]/80 backdrop-blur border border-[#1ae854]/12 p-6 rounded-2xl green-glow flex items-center justify-between">
+      <div className="bg-[#020502]/80 backdrop-blur border border-[#1ae854]/12 p-6 rounded-2xl green-glow flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-black tracking-tight text-white flex items-center gap-2">
             <Cpu className="h-5 w-5 text-[#1ae854] animate-pulse-soft" />
@@ -107,6 +203,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ files, config, onChangeCon
           <p className="text-xs text-zinc-400 mt-1">
             Real-time server metrics, compiler status, and LLM orchestration settings for MyCanvasLab.
           </p>
+        </div>
+
+        <div className="flex items-center gap-3 self-stretch sm:self-auto justify-between sm:justify-start">
+          <div className="text-right">
+            <p className="text-[10px] text-zinc-500 font-mono">Logged as Admin</p>
+            <p className="text-xs font-mono font-bold text-[#1ae854] truncate max-w-[180px]">{adminEmail}</p>
+          </div>
+          <button
+            onClick={() => {
+              setIsAdminLoggedIn(false);
+              localStorage.removeItem("is_admin_logged_in");
+            }}
+            className="px-3 py-1.5 rounded-lg border border-red-950 hover:border-red-500 bg-red-950/20 hover:bg-red-950/40 text-red-400 transition text-[10px] font-black uppercase tracking-wider cursor-pointer"
+          >
+            Logout
+          </button>
         </div>
       </div>
 
@@ -267,6 +379,78 @@ export const Dashboard: React.FC<DashboardProps> = ({ files, config, onChangeCon
                 )}
               </button>
             </div>
+
+            {/* Collapse Trigger for Change Credentials */}
+            <div className="pt-2 border-t border-[#1ae854]/10">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowChangeCreds(!showChangeCreds);
+                  setNewEmail(adminEmail);
+                  setNewPassword(adminPassword);
+                  setChangeSuccess(false);
+                }}
+                className="text-[10px] text-zinc-500 hover:text-[#1ae854] transition font-mono font-bold flex items-center gap-1 cursor-pointer"
+              >
+                🔐 {showChangeCreds ? "Hide Admin Credentials Settings" : "Change Admin Credentials Settings"}
+              </button>
+            </div>
+
+            {showChangeCreds && (
+              <div className="space-y-3 bg-black/50 border border-yellow-500/15 p-4 rounded-xl mt-3 animate-fade-in">
+                <span className="text-[10px] font-bold text-yellow-400 flex items-center gap-1.5 uppercase font-mono">
+                  🔑 Change Nexus Admin Login
+                </span>
+                <p className="text-[10px] text-zinc-500 leading-normal font-sans">
+                  Customize the admin gateway credentials. Changes will persist in browser sandbox storage.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1 font-mono">
+                    <label className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block">New Admin Email</label>
+                    <input
+                      type="email"
+                      value={newEmail}
+                      onChange={(e) => setNewEmail(e.target.value)}
+                      className="w-full bg-[#050705] border border-yellow-500/20 rounded-lg px-3 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-yellow-500/40 transition-colors"
+                    />
+                  </div>
+                  <div className="space-y-1 font-mono">
+                    <label className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block">New Admin Password</label>
+                    <input
+                      type="text"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="w-full bg-[#050705] border border-yellow-500/20 rounded-lg px-3 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-yellow-500/40 transition-colors"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!newEmail.trim() || !newPassword.trim()) {
+                        alert("Email and password cannot be empty!");
+                        return;
+                      }
+                      setAdminEmail(newEmail);
+                      setAdminPassword(newPassword);
+                      localStorage.setItem("admin_email", newEmail);
+                      localStorage.setItem("admin_password", newPassword);
+                      setChangeSuccess(true);
+                      setTimeout(() => {
+                        setChangeSuccess(false);
+                        setShowChangeCreds(false);
+                      }, 2000);
+                    }}
+                    className="px-3.5 py-1.5 bg-yellow-500 hover:bg-yellow-400 text-black font-black uppercase text-[9px] tracking-wider rounded-lg transition font-mono cursor-pointer"
+                  >
+                    {changeSuccess ? "✓ Credentials Changed!" : "Save New Credentials"}
+                  </button>
+                </div>
+              </div>
+            )}
           </form>
         </div>
 

@@ -4,6 +4,7 @@ import { ChatMessage, VirtualFile, AIConfig, ChatSession } from "../types";
 
 interface AIChatProps {
   files: VirtualFile[];
+  activeFilePath?: string;
   config: AIConfig;
   onChangeConfig: (newConfig: AIConfig) => void;
   onApplyFiles: (explanation: string, pendingFiles: VirtualFile[]) => void;
@@ -14,6 +15,7 @@ export type StageId = "purpose" | "code" | "finisher";
 
 export const AIChat: React.FC<AIChatProps> = ({
   files,
+  activeFilePath,
   config,
   onChangeConfig,
   onApplyFiles,
@@ -22,6 +24,8 @@ export const AIChat: React.FC<AIChatProps> = ({
   const [activeStage, setActiveStage] = useState<StageId>(() => {
     return (localStorage.getItem("active_agent_stage") as StageId) || "purpose";
   });
+
+  const [includeActiveFile, setIncludeActiveFile] = useState(true);
 
   const [sessions, setSessions] = useState<ChatSession[]>(() => {
     const saved = localStorage.getItem("chat_sessions_list");
@@ -451,6 +455,10 @@ export const AIChat: React.FC<AIChatProps> = ({
     setActiveMessages(updatedMessages);
     setLoading(true);
 
+    const filesToSend = includeActiveFile
+      ? files
+      : files.filter((f) => f.path !== activeFilePath);
+
     try {
       // Build stage-specific system directives to guide the prompt logic
       let directive = "";
@@ -499,7 +507,7 @@ Keep files completely intact, updating details seamlessly.`;
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             model: config.ollamaModel,
-            prompt: `Workspace Files Context:\n${JSON.stringify(files, null, 2)}\n\n${fullPromptWithDirective}\n\nRespond in JSON matching the schema:\n{ "explanation": "friendly message string", "files": [ { "path": "filename", "content": "file contents" } ] }`,
+            prompt: `Workspace Files Context:\n${JSON.stringify(filesToSend, null, 2)}\n\n${fullPromptWithDirective}\n\nRespond in JSON matching the schema:\n{ "explanation": "friendly message string", "files": [ { "path": "filename", "content": "file contents" } ] }`,
             stream: false,
           }),
         });
@@ -531,7 +539,7 @@ Keep files completely intact, updating details seamlessly.`;
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             prompt: fullPromptWithDirective,
-            files: files,
+            files: filesToSend,
             chatHistory: updatedMessages.map((m) => ({
               role: m.role,
               message: m.message,
@@ -992,6 +1000,34 @@ Let's begin writing the application code based on this finalized specifications 
             placeholder="Instruct the agent on custom behaviors, style preferences, or custom guidelines..."
             className="w-full bg-black/60 border border-[#1ae854]/15 rounded p-1.5 text-[10px] font-mono text-zinc-200 placeholder-zinc-700 focus:outline-none focus:border-[#1ae854]/40 h-10 resize-none"
           />
+        </div>
+
+        {/* Active File Context Toggle */}
+        <div className="flex items-center justify-between mt-1.5 border-t border-[#1ae854]/10 pt-1.5">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="text-[9px] text-zinc-500 font-mono shrink-0">AI Active File Context:</span>
+            {activeFilePath ? (
+              <span className="text-[10px] text-[#1ae854] font-mono truncate max-w-[120px] bg-[#1ae854]/5 border border-[#1ae854]/15 px-1.5 py-0.5 rounded" title={activeFilePath}>
+                {activeFilePath}
+              </span>
+            ) : (
+              <span className="text-[10px] text-zinc-600 font-mono italic">No file selected</span>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => setIncludeActiveFile(!includeActiveFile)}
+            disabled={!activeFilePath}
+            className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase transition-all flex items-center gap-1 cursor-pointer select-none ${
+              !activeFilePath
+                ? "bg-zinc-900 text-zinc-600 border border-transparent cursor-not-allowed"
+                : includeActiveFile
+                ? "bg-emerald-950/25 text-[#1ae854] border border-[#1ae854]/30"
+                : "bg-red-950/20 text-red-400 border border-red-500/20"
+            }`}
+          >
+            {includeActiveFile ? "Included" : "Excluded"}
+          </button>
         </div>
       </div>
 

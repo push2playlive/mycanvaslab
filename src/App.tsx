@@ -282,6 +282,34 @@ export default function App() {
     }
   };
 
+  const handleDeleteMultipleFiles = (paths: string[]) => {
+    const pathsToKeep = files.filter((f) => !paths.includes(f.path) || f.path === "index.html");
+    setFiles(pathsToKeep);
+    if (paths.includes(activeFilePath)) {
+      setActiveFilePath(pathsToKeep.length > 0 ? pathsToKeep[0].path : "");
+    }
+  };
+
+  const handleRenameFile = (oldPath: string, newPath: string) => {
+    const trimmedOld = oldPath.trim();
+    const trimmedNew = newPath.trim();
+    if (!trimmedNew || trimmedOld === trimmedNew) return;
+    if (trimmedOld === "index.html" || trimmedNew === "index.html") {
+      alert("Cannot rename index.html.");
+      return;
+    }
+    if (files.some((f) => f.path.toLowerCase() === trimmedNew.toLowerCase())) {
+      alert("A file with that name already exists in the workspace.");
+      return;
+    }
+    setFiles((prev) =>
+      prev.map((f) => (f.path === trimmedOld ? { ...f, path: trimmedNew } : f))
+    );
+    if (activeFilePath === trimmedOld) {
+      setActiveFilePath(trimmedNew);
+    }
+  };
+
   const handleUpdateContent = (content: string) => {
     setFiles((prev) =>
       prev.map((f) => (f.path === activeFilePath ? { ...f, content } : f))
@@ -718,6 +746,7 @@ export default function App() {
                     <div className="w-full h-full flex z-10">
                       <AIChat
                         files={files}
+                        activeFilePath={activeFilePath}
                         config={aiConfig}
                         onChangeConfig={handleChangeConfig}
                         onApplyFiles={handleApplyFilesFromAI}
@@ -747,6 +776,8 @@ export default function App() {
                         onSelectFile={handleSelectFile}
                         onCreateFile={handleCreateFile}
                         onDeleteFile={handleDeleteFile}
+                        onDeleteMultipleFiles={handleDeleteMultipleFiles}
+                        onRenameFile={handleRenameFile}
                         onDownloadZip={handleDownloadZip}
                       />
                     </div>
