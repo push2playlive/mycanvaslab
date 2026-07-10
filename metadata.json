@@ -1,6 +1,6 @@
 {
   "name": "MyCanvasLab AI",
-  "description": "An interactive playground and full-featured workspace with live preview, custom templates, and built-in AI assistant supporting Gemini and OpenAI.",
+  "description": "An interactive playground and full-featured workspace with live preview, custom templates, and a built-in AI assistant supporting Gemini.",
   "requestFramePermissions": [
     "camera"
   ],

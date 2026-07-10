@@ -197,7 +197,7 @@ export const LegalAndInstructions: React.FC<LegalAndInstructionsProps> = ({ isOp
 
                 <h5 className="text-[11px] font-bold text-zinc-200 uppercase tracking-wide mt-3">2. API Key Protection standards</h5>
                 <p>
-                  Any API Keys or secret keys (including Google Gemini Keys or OpenAI Keys) configured via the settings pane are kept completely secure. These keys remain stored strictly inside your browser environment or processed using server-side proxy routes, preventing them from ever being leaked or visible in client-side inspect consoles.
+                  Any API Keys or secret keys (including Google Gemini Keys) configured via the settings pane are kept completely secure. These keys remain stored strictly inside your browser environment or processed using server-side proxy routes, preventing them from ever being leaked or visible in client-side inspect consoles.
                 </p>
 
                 <h5 className="text-[11px] font-bold text-zinc-200 uppercase tracking-wide mt-3">3. Subscriber & Analytic Telemetry</h5>

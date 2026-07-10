@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Code, Palette, Terminal as TermIcon, Sliders, Shield, Sparkles, FolderOpen, BarChart3, Search, GitBranch, CheckSquare, Eye, EyeOff, LayoutGrid, Menu, ChevronDown, User, CreditCard, FolderDown, HelpCircle, Share2, Copy, ExternalLink, Trash2, RefreshCw } from "lucide-react";
 import { Group, Panel, Separator } from "react-resizable-panels";
 import JSZip from "jszip";
-import { VirtualFile, ChatMessage, AIConfig, Template, Snapshot } from "./types";
+import { VirtualFile, ChatMessage, AIConfig, Template, Snapshot, LogMessage } from "./types";
 import { FileExplorer } from "./components/FileExplorer";
 import { CodeEditor } from "./components/CodeEditor";
 import { LivePreview } from "./components/LivePreview";
@@ -19,6 +19,7 @@ import { MembersSpace } from "./components/MembersSpace";
 import PricingPage from "./components/PricingPage";
 import { KeyboardShortcutManager } from "./components/KeyboardShortcutManager";
 import { LegalAndInstructions } from "./components/LegalAndInstructions";
+import { LogsOverlay } from "./components/LogsOverlay";
 
 // Seed workspace with a highly polished default starter pack
 const INITIAL_FILES: VirtualFile[] = [
@@ -113,14 +114,50 @@ export default function App() {
   const [showAIChat, setShowAIChat] = useState(true);
 
   const [aiConfig, setAiConfig] = useState<AIConfig>(() => {
+    const defaultAgents = {
+      ollamaAgent1Name: "Ollama Coder",
+      ollamaAgent1Url: "http://localhost:11434/api/generate",
+      ollamaAgent1Model: "codellama",
+      ollamaAgent2Name: "Ollama Designer",
+      ollamaAgent2Url: "http://localhost:11434/api/generate",
+      ollamaAgent2Model: "llama3",
+      ollamaAgent3Name: "Ollama Reviewer",
+      ollamaAgent3Url: "http://localhost:11434/api/generate",
+      ollamaAgent3Model: "mistral",
+      ollamaAgent4Name: "Ollama Architect",
+      ollamaAgent4Url: "http://localhost:11434/api/generate",
+      ollamaAgent4Model: "phi3",
+      ollamaAgent5Name: "Ollama Writer",
+      ollamaAgent5Url: "http://localhost:11434/api/generate",
+      ollamaAgent5Model: "gemma2",
+      ollamaAgent6Name: "Ollama Assistant",
+      ollamaAgent6Url: "http://localhost:11434/api/generate",
+      ollamaAgent6Model: "qwen2",
+    };
+    const savedConfig = localStorage.getItem("mycanvaslab_ai_config");
+    if (savedConfig) {
+      try {
+        const parsed = JSON.parse(savedConfig);
+        return {
+          provider: "gemini",
+          geminiModel: "gemini-3.5-flash",
+          ollamaUrl: "http://localhost:11434/api/generate",
+          ollamaModel: "llama3",
+          customGeminiKey: localStorage.getItem("custom_gemini_key") || "",
+          ...defaultAgents,
+          ...parsed,
+        };
+      } catch (e) {
+        // ignore
+      }
+    }
     return {
       provider: "gemini",
       geminiModel: "gemini-3.5-flash",
-      openaiModel: "gpt-4o-mini",
       ollamaUrl: "http://localhost:11434/api/generate",
       ollamaModel: "llama3",
       customGeminiKey: localStorage.getItem("custom_gemini_key") || "",
-      customOpenaiKey: localStorage.getItem("custom_openai_key") || "",
+      ...defaultAgents,
     };
   });
 
@@ -134,6 +171,26 @@ export default function App() {
   const [compareMessage, setCompareMessage] = useState<ChatMessage | null>(null);
 
   const [showLegalModal, setShowLegalModal] = useState(false);
+
+  // Capture sandbox logs transmitted from frame message channel
+  const [sandboxLogs, setSandboxLogs] = useState<LogMessage[]>([]);
+
+  useEffect(() => {
+    const handleSandboxMessage = (event: MessageEvent) => {
+      if (event.data && event.data.type === "SANDBOX_CONSOLE_LOG") {
+        const { logType, message, timestamp } = event.data;
+        setSandboxLogs((prev) => [
+          ...prev,
+          { logType: logType as any, message, timestamp },
+        ]);
+      }
+    };
+
+    window.addEventListener("message", handleSandboxMessage);
+    return () => {
+      window.removeEventListener("message", handleSandboxMessage);
+    };
+  }, []);
 
   // Sharing & Deployment states
   const [sharedLinks, setSharedLinks] = useState<ShareLink[]>(() => {
@@ -175,11 +232,9 @@ export default function App() {
   // Sync custom keys to localstorage when they change
   const handleChangeConfig = (newConfig: AIConfig) => {
     setAiConfig(newConfig);
+    localStorage.setItem("mycanvaslab_ai_config", JSON.stringify(newConfig));
     if (newConfig.customGeminiKey) {
       localStorage.setItem("custom_gemini_key", newConfig.customGeminiKey);
-    }
-    if (newConfig.customOpenaiKey) {
-      localStorage.setItem("custom_openai_key", newConfig.customOpenaiKey);
     }
   };
 
@@ -275,22 +330,27 @@ export default function App() {
 
   const handleDeleteFile = (path: string) => {
     if (path === "index.html") return; // Prevent deleting index.html
-    const updated = files.filter((f) => f.path !== path);
-    setFiles(updated);
-    if (activeFilePath === path) {
-      setActiveFilePath(updated.length > 0 ? updated[0].path : "");
-    }
+    setFiles((prev) => {
+      const updated = prev.filter((f) => f.path !== path);
+      if (activeFilePath === path) {
+        setActiveFilePath(updated.length > 0 ? updated[0].path : "");
+      }
+      return updated;
+    });
   };
 
   const handleDeleteMultipleFiles = (paths: string[]) => {
-    const pathsToKeep = files.filter((f) => !paths.includes(f.path) || f.path === "index.html");
-    setFiles(pathsToKeep);
-    if (paths.includes(activeFilePath)) {
-      setActiveFilePath(pathsToKeep.length > 0 ? pathsToKeep[0].path : "");
-    }
+    setFiles((prev) => {
+      const updated = prev.filter((f) => !paths.includes(f.path) || f.path === "index.html");
+      if (paths.includes(activeFilePath)) {
+        setActiveFilePath(updated.length > 0 ? updated[0].path : "");
+      }
+      return updated;
+    });
   };
 
   const handleRenameFile = (oldPath: string, newPath: string) => {
+    if (!oldPath || !newPath) return;
     const trimmedOld = oldPath.trim();
     const trimmedNew = newPath.trim();
     if (!trimmedNew || trimmedOld === trimmedNew) return;
@@ -298,16 +358,44 @@ export default function App() {
       alert("Cannot rename index.html.");
       return;
     }
-    if (files.some((f) => f.path.toLowerCase() === trimmedNew.toLowerCase())) {
-      alert("A file with that name already exists in the workspace.");
-      return;
-    }
-    setFiles((prev) =>
-      prev.map((f) => (f.path === trimmedOld ? { ...f, path: trimmedNew } : f))
-    );
-    if (activeFilePath === trimmedOld) {
-      setActiveFilePath(trimmedNew);
-    }
+    setFiles((prev) => {
+      if (prev.some((f) => f.path.toLowerCase() === trimmedNew.toLowerCase() && f.path !== trimmedOld)) {
+        alert("A file with that name already exists in the workspace.");
+        return prev;
+      }
+      const updated = prev.map((f) => (f.path === trimmedOld ? { ...f, path: trimmedNew } : f));
+      if (activeFilePath === trimmedOld) {
+        setActiveFilePath(trimmedNew);
+      }
+      return updated;
+    });
+  };
+
+  const handleRenameMultipleFiles = (renames: { oldPath: string; newPath: string }[]) => {
+    setFiles((prev) => {
+      let updated = [...prev];
+      let activePath = activeFilePath;
+      
+      renames.forEach(({ oldPath, newPath }) => {
+        const trimmedOld = oldPath.trim();
+        const trimmedNew = newPath.trim();
+        if (!trimmedNew || trimmedOld === trimmedNew) return;
+        if (trimmedOld === "index.html" || trimmedNew === "index.html") return;
+        
+        const exists = updated.some((f) => f.path.toLowerCase() === trimmedNew.toLowerCase() && f.path !== trimmedOld);
+        if (exists) return;
+        
+        updated = updated.map((f) => f.path === trimmedOld ? { ...f, path: trimmedNew } : f);
+        if (activePath === trimmedOld) {
+          activePath = trimmedNew;
+        }
+      });
+      
+      if (activePath !== activeFilePath) {
+        setActiveFilePath(activePath);
+      }
+      return updated;
+    });
   };
 
   const handleUpdateContent = (content: string) => {
@@ -326,6 +414,7 @@ export default function App() {
     if (template.files.length > 0) {
       setActiveFilePath(template.files[0].path);
     }
+    setSandboxLogs([]);
     setActiveTab("workspace");
   };
 
@@ -737,96 +826,100 @@ export default function App() {
       {/* Main Sandbox Canvas Layout */}
       <main className="flex-1 flex overflow-hidden relative">
         {activeTab === "workspace" && (
-          <div className="flex-1 flex overflow-hidden">
-            <Group orientation="horizontal" className="flex-1 h-full w-full">
-              {/* Column 1: AI Proxy Chat Pilot Pipeline Sidebar (Leftmost) */}
-              {showAIChat && (
-                <>
-                  <Panel id="panel-ai-chat" defaultSize="25%" minSize="15%" maxSize="45%">
-                    <div className="w-full h-full flex z-10">
-                      <AIChat
-                        files={files}
-                        activeFilePath={activeFilePath}
-                        config={aiConfig}
-                        onChangeConfig={handleChangeConfig}
-                        onApplyFiles={handleApplyFilesFromAI}
-                        onOpenCompare={(msg) => {
-                          setCompareMessage(msg);
-                          setCompareOpen(true);
-                        }}
-                      />
-                    </div>
-                  </Panel>
-                  {(showExplorer || showCode || showPreview) && (
-                    <Separator className="group w-1.5 bg-[#020502]/40 hover:bg-[#1ae854]/10 active:bg-[#1ae854]/20 cursor-col-resize transition-all select-none relative flex items-center justify-center self-stretch">
-                      <div className="w-[1.5px] h-full bg-[#1ae854]/12 group-hover:bg-[#1ae854]/40 group-active:bg-[#1ae854]/70 transition-colors" />
-                    </Separator>
-                  )}
-                </>
-              )}
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex-1 flex overflow-hidden">
+              <Group orientation="horizontal" className="flex-1 h-full w-full">
+                {/* Column 1: AI Proxy Chat Pilot Pipeline Sidebar (Leftmost) */}
+                {showAIChat && (
+                  <>
+                    <Panel id="panel-ai-chat" defaultSize="25%" minSize="15%" maxSize="45%">
+                      <div className="w-full h-full flex z-10">
+                        <AIChat
+                          files={files}
+                          activeFilePath={activeFilePath}
+                          config={aiConfig}
+                          onChangeConfig={handleChangeConfig}
+                          onApplyFiles={handleApplyFilesFromAI}
+                          onOpenCompare={(msg) => {
+                            setCompareMessage(msg);
+                            setCompareOpen(true);
+                          }}
+                        />
+                      </div>
+                    </Panel>
+                    {(showExplorer || showCode || showPreview) && (
+                      <Separator className="group w-1.5 bg-[#020502]/40 hover:bg-[#1ae854]/10 active:bg-[#1ae854]/20 cursor-col-resize transition-all select-none relative flex items-center justify-center self-stretch">
+                        <div className="w-[1.5px] h-full bg-[#1ae854]/12 group-hover:bg-[#1ae854]/40 group-active:bg-[#1ae854]/70 transition-colors" />
+                      </Separator>
+                    )}
+                  </>
+                )}
 
-              {/* Column 2: File Explorer Tree */}
-              {showExplorer && (
-                <>
-                  <Panel id="panel-explorer" defaultSize="15%" minSize="10%" maxSize="30%">
-                    <div className="w-full h-full flex bg-[#020502]/20 border-r border-[#1ae854]/12">
-                      <FileExplorer
-                        files={files}
-                        activeFilePath={activeFilePath}
-                        onSelectFile={handleSelectFile}
-                        onCreateFile={handleCreateFile}
-                        onDeleteFile={handleDeleteFile}
-                        onDeleteMultipleFiles={handleDeleteMultipleFiles}
-                        onRenameFile={handleRenameFile}
-                        onDownloadZip={handleDownloadZip}
-                      />
-                    </div>
-                  </Panel>
-                  {(showCode || showPreview) && (
-                    <Separator className="group w-1.5 bg-[#020502]/40 hover:bg-[#1ae854]/10 active:bg-[#1ae854]/20 cursor-col-resize transition-all select-none relative flex items-center justify-center self-stretch">
-                      <div className="w-[1.5px] h-full bg-[#1ae854]/12 group-hover:bg-[#1ae854]/40 group-active:bg-[#1ae854]/70 transition-colors" />
-                    </Separator>
-                  )}
-                </>
-              )}
+                {/* Column 2: File Explorer Tree */}
+                {showExplorer && (
+                  <>
+                    <Panel id="panel-explorer" defaultSize="15%" minSize="10%" maxSize="30%">
+                      <div className="w-full h-full flex bg-[#020502]/20 border-r border-[#1ae854]/12">
+                        <FileExplorer
+                          files={files}
+                          activeFilePath={activeFilePath}
+                          onSelectFile={handleSelectFile}
+                          onCreateFile={handleCreateFile}
+                          onDeleteFile={handleDeleteFile}
+                          onDeleteMultipleFiles={handleDeleteMultipleFiles}
+                          onRenameFile={handleRenameFile}
+                          onRenameMultipleFiles={handleRenameMultipleFiles}
+                          onDownloadZip={handleDownloadZip}
+                        />
+                      </div>
+                    </Panel>
+                    {(showCode || showPreview) && (
+                      <Separator className="group w-1.5 bg-[#020502]/40 hover:bg-[#1ae854]/10 active:bg-[#1ae854]/20 cursor-col-resize transition-all select-none relative flex items-center justify-center self-stretch">
+                        <div className="w-[1.5px] h-full bg-[#1ae854]/12 group-hover:bg-[#1ae854]/40 group-active:bg-[#1ae854]/70 transition-colors" />
+                      </Separator>
+                    )}
+                  </>
+                )}
 
-              {/* Column 3: Code Editor Page */}
-              {showCode && (
-                <>
-                  <Panel id="panel-code" defaultSize="35%" minSize="20%">
-                    <div className="w-full h-full flex flex-col border-r border-[#1ae854]/12">
-                      <CodeEditor
-                        activeFile={activeFile}
-                        onUpdateContent={handleUpdateContent}
-                        onSave={handleSaveFile}
+                {/* Column 3: Code Editor Page */}
+                {showCode && (
+                  <>
+                    <Panel id="panel-code" defaultSize="35%" minSize="20%">
+                      <div className="w-full h-full flex flex-col border-r border-[#1ae854]/12">
+                        <CodeEditor
+                          activeFile={activeFile}
+                          onUpdateContent={handleUpdateContent}
+                          onSave={handleSaveFile}
+                          showCode={showCode}
+                          showPreview={showPreview}
+                          onToggleLayout={handleToggleLayout}
+                        />
+                      </div>
+                    </Panel>
+                    {showPreview && (
+                      <Separator className="group w-1.5 bg-[#020502]/40 hover:bg-[#1ae854]/10 active:bg-[#1ae854]/20 cursor-col-resize transition-all select-none relative flex items-center justify-center self-stretch">
+                        <div className="w-[1.5px] h-full bg-[#1ae854]/12 group-hover:bg-[#1ae854]/40 group-active:bg-[#1ae854]/70 transition-colors" />
+                      </Separator>
+                    )}
+                  </>
+                )}
+
+                {/* Column 4: Live Preview Web Sandbox Section (Rightmost) */}
+                {showPreview && (
+                  <Panel id="panel-preview" defaultSize="25%" minSize="15%">
+                    <div className="w-full h-full flex bg-black/40">
+                      <LivePreview
+                        files={files}
                         showCode={showCode}
                         showPreview={showPreview}
                         onToggleLayout={handleToggleLayout}
                       />
                     </div>
                   </Panel>
-                  {showPreview && (
-                    <Separator className="group w-1.5 bg-[#020502]/40 hover:bg-[#1ae854]/10 active:bg-[#1ae854]/20 cursor-col-resize transition-all select-none relative flex items-center justify-center self-stretch">
-                      <div className="w-[1.5px] h-full bg-[#1ae854]/12 group-hover:bg-[#1ae854]/40 group-active:bg-[#1ae854]/70 transition-colors" />
-                    </Separator>
-                  )}
-                </>
-              )}
-
-              {/* Column 4: Live Preview Web Sandbox Section (Rightmost) */}
-              {showPreview && (
-                <Panel id="panel-preview" defaultSize="25%" minSize="15%">
-                  <div className="w-full h-full flex bg-black/40">
-                    <LivePreview
-                      files={files}
-                      showCode={showCode}
-                      showPreview={showPreview}
-                      onToggleLayout={handleToggleLayout}
-                    />
-                  </div>
-                </Panel>
-              )}
-            </Group>
+                )}
+              </Group>
+            </div>
+            <LogsOverlay logs={sandboxLogs} onClear={() => setSandboxLogs([])} />
           </div>
         )}
 

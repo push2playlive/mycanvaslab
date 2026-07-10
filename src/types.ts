@@ -3,6 +3,12 @@ export interface VirtualFile {
   content: string;
 }
 
+export interface LogMessage {
+  logType: "log" | "warn" | "error" | "info";
+  message: string;
+  timestamp: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
@@ -20,13 +26,37 @@ export interface Template {
 }
 
 export interface AIConfig {
-  provider: "gemini" | "openai" | "ollama";
+  provider: "gemini" | "ollama" | "ollama_agent_1" | "ollama_agent_2" | "ollama_agent_3" | "ollama_agent_4" | "ollama_agent_5" | "ollama_agent_6";
   geminiModel: string;
-  openaiModel: string;
   ollamaUrl: string;
   ollamaModel: string;
   customGeminiKey: string;
-  customOpenaiKey: string;
+  
+  // Custom 3 Ollama Agent configurations
+  ollamaAgent1Name?: string;
+  ollamaAgent1Url?: string;
+  ollamaAgent1Model?: string;
+
+  ollamaAgent2Name?: string;
+  ollamaAgent2Url?: string;
+  ollamaAgent2Model?: string;
+
+  ollamaAgent3Name?: string;
+  ollamaAgent3Url?: string;
+  ollamaAgent3Model?: string;
+
+  // Additional 3 Ollama Agent configurations
+  ollamaAgent4Name?: string;
+  ollamaAgent4Url?: string;
+  ollamaAgent4Model?: string;
+
+  ollamaAgent5Name?: string;
+  ollamaAgent5Url?: string;
+  ollamaAgent5Model?: string;
+
+  ollamaAgent6Name?: string;
+  ollamaAgent6Url?: string;
+  ollamaAgent6Model?: string;
 }
 
 export interface Snapshot {

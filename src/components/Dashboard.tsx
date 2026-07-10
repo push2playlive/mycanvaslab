@@ -12,10 +12,33 @@ interface DashboardProps {
 
 export const Dashboard: React.FC<DashboardProps> = ({ files, config, onChangeConfig, snapshots }) => {
   const [geminiKey, setGeminiKey] = useState(config.customGeminiKey);
-  const [openaiKey, setOpenaiKey] = useState(config.customOpenaiKey);
   const [ollamaUrl, setOllamaUrl] = useState(config.ollamaUrl);
   const [ollamaModel, setOllamaModel] = useState(config.ollamaModel);
   const [saved, setSaved] = useState(false);
+
+  const [agent1Name, setAgent1Name] = useState(config.ollamaAgent1Name || "Ollama Coder");
+  const [agent1Url, setAgent1Url] = useState(config.ollamaAgent1Url || "http://localhost:11434/api/generate");
+  const [agent1Model, setAgent1Model] = useState(config.ollamaAgent1Model || "codellama");
+
+  const [agent2Name, setAgent2Name] = useState(config.ollamaAgent2Name || "Ollama Designer");
+  const [agent2Url, setAgent2Url] = useState(config.ollamaAgent2Url || "http://localhost:11434/api/generate");
+  const [agent2Model, setAgent2Model] = useState(config.ollamaAgent2Model || "llama3");
+
+  const [agent3Name, setAgent3Name] = useState(config.ollamaAgent3Name || "Ollama Reviewer");
+  const [agent3Url, setAgent3Url] = useState(config.ollamaAgent3Url || "http://localhost:11434/api/generate");
+  const [agent3Model, setAgent3Model] = useState(config.ollamaAgent3Model || "mistral");
+
+  const [agent4Name, setAgent4Name] = useState(config.ollamaAgent4Name || "Ollama Architect");
+  const [agent4Url, setAgent4Url] = useState(config.ollamaAgent4Url || "http://localhost:11434/api/generate");
+  const [agent4Model, setAgent4Model] = useState(config.ollamaAgent4Model || "phi3");
+
+  const [agent5Name, setAgent5Name] = useState(config.ollamaAgent5Name || "Ollama Writer");
+  const [agent5Url, setAgent5Url] = useState(config.ollamaAgent5Url || "http://localhost:11434/api/generate");
+  const [agent5Model, setAgent5Model] = useState(config.ollamaAgent5Model || "gemma2");
+
+  const [agent6Name, setAgent6Name] = useState(config.ollamaAgent6Name || "Ollama Assistant");
+  const [agent6Url, setAgent6Url] = useState(config.ollamaAgent6Url || "http://localhost:11434/api/generate");
+  const [agent6Model, setAgent6Model] = useState(config.ollamaAgent6Model || "qwen2");
 
   // Admin Login Credentials & Session state
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(() => {
@@ -40,9 +63,32 @@ export const Dashboard: React.FC<DashboardProps> = ({ files, config, onChangeCon
   // Keep local states in sync when parent config changes
   useEffect(() => {
     setGeminiKey(config.customGeminiKey);
-    setOpenaiKey(config.customOpenaiKey);
     setOllamaUrl(config.ollamaUrl);
     setOllamaModel(config.ollamaModel);
+
+    setAgent1Name(config.ollamaAgent1Name || "Ollama Coder");
+    setAgent1Url(config.ollamaAgent1Url || "http://localhost:11434/api/generate");
+    setAgent1Model(config.ollamaAgent1Model || "codellama");
+
+    setAgent2Name(config.ollamaAgent2Name || "Ollama Designer");
+    setAgent2Url(config.ollamaAgent2Url || "http://localhost:11434/api/generate");
+    setAgent2Model(config.ollamaAgent2Model || "llama3");
+
+    setAgent3Name(config.ollamaAgent3Name || "Ollama Reviewer");
+    setAgent3Url(config.ollamaAgent3Url || "http://localhost:11434/api/generate");
+    setAgent3Model(config.ollamaAgent3Model || "mistral");
+
+    setAgent4Name(config.ollamaAgent4Name || "Ollama Architect");
+    setAgent4Url(config.ollamaAgent4Url || "http://localhost:11434/api/generate");
+    setAgent4Model(config.ollamaAgent4Model || "phi3");
+
+    setAgent5Name(config.ollamaAgent5Name || "Ollama Writer");
+    setAgent5Url(config.ollamaAgent5Url || "http://localhost:11434/api/generate");
+    setAgent5Model(config.ollamaAgent5Model || "gemma2");
+
+    setAgent6Name(config.ollamaAgent6Name || "Ollama Assistant");
+    setAgent6Url(config.ollamaAgent6Url || "http://localhost:11434/api/generate");
+    setAgent6Model(config.ollamaAgent6Model || "qwen2");
   }, [config]);
 
   if (!isAdminLoggedIn) {
@@ -126,13 +172,29 @@ export const Dashboard: React.FC<DashboardProps> = ({ files, config, onChangeCon
     onChangeConfig({
       ...config,
       customGeminiKey: geminiKey,
-      customOpenaiKey: openaiKey,
       ollamaUrl,
       ollamaModel,
+      ollamaAgent1Name: agent1Name,
+      ollamaAgent1Url: agent1Url,
+      ollamaAgent1Model: agent1Model,
+      ollamaAgent2Name: agent2Name,
+      ollamaAgent2Url: agent2Url,
+      ollamaAgent2Model: agent2Model,
+      ollamaAgent3Name: agent3Name,
+      ollamaAgent3Url: agent3Url,
+      ollamaAgent3Model: agent3Model,
+      ollamaAgent4Name: agent4Name,
+      ollamaAgent4Url: agent4Url,
+      ollamaAgent4Model: agent4Model,
+      ollamaAgent5Name: agent5Name,
+      ollamaAgent5Url: agent5Url,
+      ollamaAgent5Model: agent5Model,
+      ollamaAgent6Name: agent6Name,
+      ollamaAgent6Url: agent6Url,
+      ollamaAgent6Model: agent6Model,
     });
     // Write keys to localStorage as fallback
     localStorage.setItem("custom_gemini_key", geminiKey);
-    localStorage.setItem("custom_openai_key", openaiKey);
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
   };
@@ -140,14 +202,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ files, config, onChangeCon
   const handleClearAllKeys = () => {
     if (window.confirm("Are you sure you want to completely erase your saved API keys from browser memory?")) {
       setGeminiKey("");
-      setOpenaiKey("");
       onChangeConfig({
         ...config,
         customGeminiKey: "",
-        customOpenaiKey: "",
       });
       localStorage.removeItem("custom_gemini_key");
-      localStorage.removeItem("custom_openai_key");
     }
   };
 
@@ -350,6 +409,240 @@ export const Dashboard: React.FC<DashboardProps> = ({ files, config, onChangeCon
                     placeholder="llama3"
                     className="w-full bg-[#050705] border border-[#1ae854]/15 rounded-lg px-3 py-1.5 text-xs font-mono text-zinc-200 focus:outline-none focus:border-[#1ae854] transition-colors"
                   />
+                </div>
+              </div>
+            </div>
+
+            {/* Ollama Agents Dashboard Configuration */}
+            <div className="space-y-3 bg-black/40 border border-[#1ae854]/5 p-3.5 rounded-xl">
+              <div className="flex justify-between items-center border-b border-zinc-900 pb-1.5">
+                <span className="text-[10px] font-bold text-zinc-300 flex items-center gap-1.5">
+                  <Bot className="h-3.5 w-3.5 text-purple-400" /> OLLAMA MULTI-AGENT FLEET (6 AGENTS)
+                </span>
+                <span className="text-[8px] font-mono text-zinc-500">Autonomous Nodes</span>
+              </div>
+              
+              <div className="space-y-4 divide-y divide-zinc-900/60 max-h-[350px] overflow-y-auto pr-1">
+                {/* Agent 1 */}
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+                    <span className="text-[10px] font-bold text-zinc-400">Agent #1</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <div className="space-y-1">
+                      <label className="text-[8px] text-zinc-600 font-bold uppercase block">Name</label>
+                      <input
+                        type="text"
+                        value={agent1Name}
+                        onChange={(e) => setAgent1Name(e.target.value)}
+                        className="w-full bg-[#050705] border border-[#1ae854]/15 rounded-md px-2.5 py-1 text-xs text-zinc-200 focus:outline-none focus:border-purple-500"
+                      />
+                    </div>
+                    <div className="space-y-1 sm:col-span-2">
+                      <label className="text-[8px] text-zinc-600 font-bold uppercase block">Server Endpoint URL</label>
+                      <input
+                        type="text"
+                        value={agent1Url}
+                        onChange={(e) => setAgent1Url(e.target.value)}
+                        className="w-full bg-[#050705] border border-[#1ae854]/15 rounded-md px-2.5 py-1 text-xs font-mono text-zinc-200 focus:outline-none focus:border-purple-500"
+                      />
+                    </div>
+                    <div className="space-y-1 sm:col-span-3">
+                      <label className="text-[8px] text-zinc-600 font-bold uppercase block">Ollama Model Tag</label>
+                      <input
+                        type="text"
+                        value={agent1Model}
+                        onChange={(e) => setAgent1Model(e.target.value)}
+                        className="w-full bg-[#050705] border border-[#1ae854]/15 rounded-md px-2.5 py-1 text-xs font-mono text-zinc-200 focus:outline-none focus:border-purple-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Agent 2 */}
+                <div className="space-y-2 pt-3">
+                  <div className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-pink-500" />
+                    <span className="text-[10px] font-bold text-zinc-400">Agent #2</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <div className="space-y-1">
+                      <label className="text-[8px] text-zinc-600 font-bold uppercase block">Name</label>
+                      <input
+                        type="text"
+                        value={agent2Name}
+                        onChange={(e) => setAgent2Name(e.target.value)}
+                        className="w-full bg-[#050705] border border-[#1ae854]/15 rounded-md px-2.5 py-1 text-xs text-zinc-200 focus:outline-none focus:border-pink-500"
+                      />
+                    </div>
+                    <div className="space-y-1 sm:col-span-2">
+                      <label className="text-[8px] text-zinc-600 font-bold uppercase block">Server Endpoint URL</label>
+                      <input
+                        type="text"
+                        value={agent2Url}
+                        onChange={(e) => setAgent2Url(e.target.value)}
+                        className="w-full bg-[#050705] border border-[#1ae854]/15 rounded-md px-2.5 py-1 text-xs font-mono text-zinc-200 focus:outline-none focus:border-pink-500"
+                      />
+                    </div>
+                    <div className="space-y-1 sm:col-span-3">
+                      <label className="text-[8px] text-zinc-600 font-bold uppercase block">Ollama Model Tag</label>
+                      <input
+                        type="text"
+                        value={agent2Model}
+                        onChange={(e) => setAgent2Model(e.target.value)}
+                        className="w-full bg-[#050705] border border-[#1ae854]/15 rounded-md px-2.5 py-1 text-xs font-mono text-zinc-200 focus:outline-none focus:border-pink-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Agent 3 */}
+                <div className="space-y-2 pt-3">
+                  <div className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    <span className="text-[10px] font-bold text-zinc-400">Agent #3</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <div className="space-y-1">
+                      <label className="text-[8px] text-zinc-600 font-bold uppercase block">Name</label>
+                      <input
+                        type="text"
+                        value={agent3Name}
+                        onChange={(e) => setAgent3Name(e.target.value)}
+                        className="w-full bg-[#050705] border border-[#1ae854]/15 rounded-md px-2.5 py-1 text-xs text-zinc-200 focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+                    <div className="space-y-1 sm:col-span-2">
+                      <label className="text-[8px] text-zinc-600 font-bold uppercase block">Server Endpoint URL</label>
+                      <input
+                        type="text"
+                        value={agent3Url}
+                        onChange={(e) => setAgent3Url(e.target.value)}
+                        className="w-full bg-[#050705] border border-[#1ae854]/15 rounded-md px-2.5 py-1 text-xs font-mono text-zinc-200 focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+                    <div className="space-y-1 sm:col-span-3">
+                      <label className="text-[8px] text-zinc-600 font-bold uppercase block">Ollama Model Tag</label>
+                      <input
+                        type="text"
+                        value={agent3Model}
+                        onChange={(e) => setAgent3Model(e.target.value)}
+                        className="w-full bg-[#050705] border border-[#1ae854]/15 rounded-md px-2.5 py-1 text-xs font-mono text-zinc-200 focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Agent 4 */}
+                <div className="space-y-2 pt-3">
+                  <div className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                    <span className="text-[10px] font-bold text-zinc-400">Agent #4</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <div className="space-y-1">
+                      <label className="text-[8px] text-zinc-600 font-bold uppercase block">Name</label>
+                      <input
+                        type="text"
+                        value={agent4Name}
+                        onChange={(e) => setAgent4Name(e.target.value)}
+                        className="w-full bg-[#050705] border border-[#1ae854]/15 rounded-md px-2.5 py-1 text-xs text-zinc-200 focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+                    <div className="space-y-1 sm:col-span-2">
+                      <label className="text-[8px] text-zinc-600 font-bold uppercase block">Server Endpoint URL</label>
+                      <input
+                        type="text"
+                        value={agent4Url}
+                        onChange={(e) => setAgent4Url(e.target.value)}
+                        className="w-full bg-[#050705] border border-[#1ae854]/15 rounded-md px-2.5 py-1 text-xs font-mono text-zinc-200 focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+                    <div className="space-y-1 sm:col-span-3">
+                      <label className="text-[8px] text-zinc-600 font-bold uppercase block">Ollama Model Tag</label>
+                      <input
+                        type="text"
+                        value={agent4Model}
+                        onChange={(e) => setAgent4Model(e.target.value)}
+                        className="w-full bg-[#050705] border border-[#1ae854]/15 rounded-md px-2.5 py-1 text-xs font-mono text-zinc-200 focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Agent 5 */}
+                <div className="space-y-2 pt-3">
+                  <div className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-500" />
+                    <span className="text-[10px] font-bold text-zinc-400">Agent #5</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <div className="space-y-1">
+                      <label className="text-[8px] text-zinc-600 font-bold uppercase block">Name</label>
+                      <input
+                        type="text"
+                        value={agent5Name}
+                        onChange={(e) => setAgent5Name(e.target.value)}
+                        className="w-full bg-[#050705] border border-[#1ae854]/15 rounded-md px-2.5 py-1 text-xs text-zinc-200 focus:outline-none focus:border-cyan-500"
+                      />
+                    </div>
+                    <div className="space-y-1 sm:col-span-2">
+                      <label className="text-[8px] text-zinc-600 font-bold uppercase block">Server Endpoint URL</label>
+                      <input
+                        type="text"
+                        value={agent5Url}
+                        onChange={(e) => setAgent5Url(e.target.value)}
+                        className="w-full bg-[#050705] border border-[#1ae854]/15 rounded-md px-2.5 py-1 text-xs font-mono text-zinc-200 focus:outline-none focus:border-cyan-500"
+                      />
+                    </div>
+                    <div className="space-y-1 sm:col-span-3">
+                      <label className="text-[8px] text-zinc-600 font-bold uppercase block">Ollama Model Tag</label>
+                      <input
+                        type="text"
+                        value={agent5Model}
+                        onChange={(e) => setAgent5Model(e.target.value)}
+                        className="w-full bg-[#050705] border border-[#1ae854]/15 rounded-md px-2.5 py-1 text-xs font-mono text-zinc-200 focus:outline-none focus:border-cyan-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Agent 6 */}
+                <div className="space-y-2 pt-3">
+                  <div className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />
+                    <span className="text-[10px] font-bold text-zinc-400">Agent #6</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <div className="space-y-1">
+                      <label className="text-[8px] text-zinc-600 font-bold uppercase block">Name</label>
+                      <input
+                        type="text"
+                        value={agent6Name}
+                        onChange={(e) => setAgent6Name(e.target.value)}
+                        className="w-full bg-[#050705] border border-[#1ae854]/15 rounded-md px-2.5 py-1 text-xs text-zinc-200 focus:outline-none focus:border-orange-500"
+                      />
+                    </div>
+                    <div className="space-y-1 sm:col-span-2">
+                      <label className="text-[8px] text-zinc-600 font-bold uppercase block">Server Endpoint URL</label>
+                      <input
+                        type="text"
+                        value={agent6Url}
+                        onChange={(e) => setAgent6Url(e.target.value)}
+                        className="w-full bg-[#050705] border border-[#1ae854]/15 rounded-md px-2.5 py-1 text-xs font-mono text-zinc-200 focus:outline-none focus:border-orange-500"
+                      />
+                    </div>
+                    <div className="space-y-1 sm:col-span-3">
+                      <label className="text-[8px] text-zinc-600 font-bold uppercase block">Ollama Model Tag</label>
+                      <input
+                        type="text"
+                        value={agent6Model}
+                        onChange={(e) => setAgent6Model(e.target.value)}
+                        className="w-full bg-[#050705] border border-[#1ae854]/15 rounded-md px-2.5 py-1 text-xs font-mono text-zinc-200 focus:outline-none focus:border-orange-500"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

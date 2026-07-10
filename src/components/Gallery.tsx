@@ -1,8 +1,9 @@
 import React, { useState } from "react";
-import { Palette, Calculator, FileText, CheckCircle, HelpCircle, Code, Sparkles, Eye, RefreshCw, Monitor, Tablet, Smartphone, X, Copy, Check } from "lucide-react";
+import { Palette, Calculator, FileText, CheckCircle, HelpCircle, Code, Sparkles, Eye, RefreshCw, Monitor, Tablet, Smartphone, X, Copy, Check, Grid, List } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { TEMPLATES } from "../data/templates";
 import { Template } from "../types";
+import { FileStructureCanvas } from "./FileStructureCanvas";
 
 interface GalleryProps {
   onLoadTemplate: (template: Template) => void;
@@ -287,17 +288,49 @@ const TEMPLATE_CATEGORIES: Record<string, string[]> = {
   "MyCanvasLab & utube.media Hub": ["Dashboard", "Interactive", "Analytics"],
 };
 
+const TEMPLATE_TAGS: Record<string, string[]> = {
+  "Interactive Canvas Sketchpad": ["HTML5", "Canvas", "Tailwind", "JavaScript", "Interactive", "Creative", "UI", "Animations"],
+  "Cosmic Scientific Calculator": ["HTML5", "CSS Grid", "Tailwind", "JavaScript", "Math", "Utility", "UI", "Data"],
+  "Elegant Markdown Document Editor": ["Markdown", "HTML5", "Tailwind", "JavaScript", "Editor", "Utility", "UI", "Data"],
+  "MyCanvasLab & utube.media Hub": ["React", "TypeScript", "Tailwind", "Socket.io", "Zustand", "Framer Motion", "Dashboard", "Analytics", "Interactive", "UI", "Data", "Animations"],
+};
+
 export const Gallery: React.FC<GalleryProps> = ({ onLoadTemplate }) => {
   const [hoveredTemplate, setHoveredTemplate] = useState<string | null>(null);
   const [activeHoverTemplate, setActiveHoverTemplate] = useState<Template | null>(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+
+  const [activeCardPreviews, setActiveCardPreviews] = useState<Record<string, boolean>>({});
+  const [cardIframeKeys, setCardIframeKeys] = useState<Record<string, number>>({});
 
   const [selectedDetailTemplate, setSelectedDetailTemplate] = useState<Template | null>(null);
   const [modalResponsiveMode, setModalResponsiveMode] = useState<"desktop" | "tablet" | "mobile">("desktop");
   const [modalSelectedFilePath, setModalSelectedFilePath] = useState<string | null>(null);
   const [modalIframeKey, setModalIframeKey] = useState<number>(0);
   const [copiedFilePath, setCopiedFilePath] = useState<string | null>(null);
+  const [rightPanelModes, setRightPanelModes] = useState<Record<string, "demo" | "structure">>({});
+
+  const [quickPreviewTemplate, setQuickPreviewTemplate] = useState<Template | null>(null);
+  const [quickPreviewSelectedFilePath, setQuickPreviewSelectedFilePath] = useState<string | null>(null);
+  const [quickPreviewCopied, setQuickPreviewCopied] = useState<boolean>(false);
+
+  const toggleCardPreview = (templateName: string) => {
+    setActiveCardPreviews((prev) => ({
+      ...prev,
+      [templateName]: !prev[templateName],
+    }));
+  };
+
+  const reloadCardIframe = (templateName: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCardIframeKeys((prev) => ({
+      ...prev,
+      [templateName]: (prev[templateName] || 0) + 1,
+    }));
+  };
 
   const getMiniIcon = (iconName: string) => {
     switch (iconName) {
@@ -319,8 +352,9 @@ export const Gallery: React.FC<GalleryProps> = ({ onLoadTemplate }) => {
   };
 
   const filteredTemplates = TEMPLATES.filter((template) => {
-    if (selectedCategory === "All") return true;
-    return TEMPLATE_CATEGORIES[template.name]?.includes(selectedCategory);
+    const matchesCategory = selectedCategory === "All" || TEMPLATE_CATEGORIES[template.name]?.includes(selectedCategory);
+    const matchesTag = !selectedTag || TEMPLATE_TAGS[template.name]?.includes(selectedTag);
+    return matchesCategory && matchesTag;
   });
 
   return (
@@ -334,24 +368,149 @@ export const Gallery: React.FC<GalleryProps> = ({ onLoadTemplate }) => {
           <p className="text-xs text-zinc-500 mt-1">Load fully functional frontend templates directly into your active workspace</p>
         </div>
 
-        {/* Category Filter Pills */}
-        <div className="flex flex-wrap items-center gap-1.5 self-start md:self-auto bg-black/40 p-1 rounded-xl border border-zinc-900">
-          {["All", "Interactive", "Dashboard", "Utility", "Editor"].map((category) => {
-            const isActive = selectedCategory === category;
-            return (
-              <button
-                key={category}
-                onClick={() => setSelectedCategory(category)}
-                className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                  isActive
-                    ? "bg-purple-950/30 text-purple-400 border border-purple-500/40 shadow-[0_0_12px_rgba(168,85,247,0.15)]"
-                    : "border border-transparent text-zinc-400 hover:text-zinc-200"
-                }`}
-              >
-                {category}
-              </button>
-            );
-          })}
+        {/* Category Filter Pills & View Mode Toggle */}
+        <div className="flex flex-wrap items-center gap-3 self-start md:self-auto">
+          {/* Category Filter Pills */}
+          <div className="flex flex-wrap items-center gap-1.5 bg-black/40 p-1 rounded-xl border border-zinc-900">
+            {["All", "Interactive", "Dashboard", "Utility", "Editor"].map((category) => {
+              const isActive = selectedCategory === category;
+              return (
+                <button
+                  key={category}
+                  onClick={() => setSelectedCategory(category)}
+                  className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                    isActive
+                      ? "bg-purple-950/30 text-purple-400 border border-purple-500/40 shadow-[0_0_12px_rgba(168,85,247,0.15)]"
+                      : "border border-transparent text-zinc-400 hover:text-zinc-200"
+                  }`}
+                >
+                  {category}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* View Mode Toggle Switch */}
+          <div className="flex items-center bg-black/40 p-1 rounded-xl border border-zinc-900 select-none shrink-0">
+            <button
+              onClick={() => setViewMode("grid")}
+              className={`p-1 text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1 px-2.5 py-1 rounded-lg border ${
+                viewMode === "grid"
+                  ? "bg-purple-950/30 text-purple-400 border-purple-500/30 shadow-[0_0_12px_rgba(168,85,247,0.15)]"
+                  : "border-transparent text-zinc-500 hover:text-zinc-300"
+              }`}
+              title="Grid View"
+            >
+              <Grid className="h-3 w-3" />
+              <span>Grid</span>
+            </button>
+            <button
+              onClick={() => setViewMode("list")}
+              className={`p-1 text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1 px-2.5 py-1 rounded-lg border ${
+                viewMode === "list"
+                  ? "bg-purple-950/30 text-purple-400 border-purple-500/30 shadow-[0_0_12px_rgba(168,85,247,0.15)]"
+                  : "border-transparent text-zinc-500 hover:text-zinc-300"
+              }`}
+              title="List View"
+            >
+              <List className="h-3 w-3" />
+              <span>List</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Interactive Tag Filtering Section */}
+      <div className="p-4 bg-zinc-950/40 border border-zinc-900 rounded-2xl flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-purple-400" />
+            <span className="text-[10px] font-black uppercase tracking-wider text-zinc-300">
+              Filter by Tech Stack / Library Tags
+            </span>
+          </div>
+          {selectedTag && (
+            <button
+              onClick={() => setSelectedTag(null)}
+              className="text-[9px] font-bold text-purple-400 hover:text-purple-350 cursor-pointer flex items-center gap-1 bg-purple-950/20 px-2 py-1 rounded-md border border-purple-500/20 transition-all"
+            >
+              Clear Tag <X className="h-3 w-3" />
+            </button>
+          )}
+        </div>
+
+        {/* Grouped Tag Filters */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Core Capabilities Group */}
+          <div className="space-y-2">
+            <div className="text-[8px] font-bold text-zinc-500 uppercase tracking-wider font-mono">
+              ⚡ Core Capabilities
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {["UI", "Data", "Animations", "Interactive", "Utility", "Creative", "Editor", "Dashboard"].map((tag) => {
+                const isSelected = selectedTag === tag;
+                return (
+                  <button
+                    key={tag}
+                    onClick={() => setSelectedTag(isSelected ? null : tag)}
+                    className={`px-3 py-1.5 rounded-lg text-[9.5px] font-mono transition-all duration-200 cursor-pointer flex items-center gap-1.5 border ${
+                      isSelected
+                        ? "bg-purple-950/45 text-purple-300 border-purple-500/50 shadow-[0_0_12px_rgba(168,85,247,0.25)] font-bold animate-pulse"
+                        : "bg-zinc-950 text-zinc-500 border-zinc-900 hover:text-zinc-300 hover:border-zinc-800"
+                    }`}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full ${
+                      tag === "UI" ? "bg-[#8b5cf6]" :
+                      tag === "Data" ? "bg-[#0ea5e9]" :
+                      tag === "Animations" ? "bg-[#f43f5e]" :
+                      tag === "Interactive" ? "bg-[#10b981]" :
+                      tag === "Utility" ? "bg-[#f59e0b]" :
+                      tag === "Creative" ? "bg-[#ec4899]" :
+                      tag === "Editor" ? "bg-[#10b981]" :
+                      tag === "Dashboard" ? "bg-[#a855f7]" :
+                      "bg-zinc-600"
+                    }`} />
+                    {tag}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Tech Stack / Languages Group */}
+          <div className="space-y-2">
+            <div className="text-[8px] font-bold text-zinc-500 uppercase tracking-wider font-mono">
+              🛠️ Tech Stack &amp; Libraries
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {["React", "TypeScript", "Tailwind", "Socket.io", "Zustand", "Framer Motion", "HTML5", "CSS Grid", "JavaScript", "Markdown", "Math", "Canvas"].map((tag) => {
+                const isSelected = selectedTag === tag;
+                return (
+                  <button
+                    key={tag}
+                    onClick={() => setSelectedTag(isSelected ? null : tag)}
+                    className={`px-3 py-1.5 rounded-lg text-[9.5px] font-mono transition-all duration-200 cursor-pointer flex items-center gap-1.5 border ${
+                      isSelected
+                        ? "bg-purple-950/45 text-purple-300 border-purple-500/50 shadow-[0_0_12px_rgba(168,85,247,0.25)] font-bold animate-pulse"
+                        : "bg-zinc-950 text-zinc-500 border-zinc-900 hover:text-zinc-300 hover:border-zinc-800"
+                    }`}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full ${
+                      tag === "React" ? "bg-[#14b8a6]" :
+                      tag === "TypeScript" ? "bg-[#3b82f6]" :
+                      tag === "Tailwind" ? "bg-[#06b6d4]" :
+                      tag === "Socket.io" ? "bg-[#10b981]" :
+                      tag === "Framer Motion" ? "bg-[#ec4899]" :
+                      tag === "HTML5" ? "bg-[#f97316]" :
+                      tag === "Canvas" ? "bg-[#e11d48]" :
+                      "bg-zinc-600"
+                    }`} />
+                    {tag}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -360,145 +519,332 @@ export const Gallery: React.FC<GalleryProps> = ({ onLoadTemplate }) => {
           No templates found in this category.
         </div>
       ) : (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 animate-fadeIn">
-          {filteredTemplates.map((template) => (
-            <div
-              key={template.name}
-              onMouseEnter={() => {
-                setHoveredTemplate(template.name);
-                setActiveHoverTemplate(template);
-              }}
-              onMouseLeave={() => {
-                setHoveredTemplate(null);
-                setActiveHoverTemplate(null);
-              }}
-              onMouseMove={(e) => {
-                setMousePos({ x: e.clientX, y: e.clientY });
-              }}
-              className="group relative bg-zinc-950/60 hover:bg-[#0c0c0e] border border-zinc-850 hover:border-purple-500/30 p-4 rounded-xl transition-all duration-350 flex flex-col sm:flex-row gap-4 justify-between items-stretch sm:items-center animate-fadeIn"
-            >
-              {/* Left group with details & files */}
-              <div 
-                onClick={() => {
-                  setSelectedDetailTemplate(template);
-                  setModalSelectedFilePath(null);
-                  setModalResponsiveMode("desktop");
+        <div className={viewMode === "grid" ? "grid grid-cols-1 xl:grid-cols-2 gap-5 animate-fadeIn" : "flex flex-col gap-4 animate-fadeIn"}>
+          {filteredTemplates.map((template) => {
+            const isPreviewOpen = !!activeCardPreviews[template.name];
+            return (
+              <div
+                key={template.name}
+                onMouseEnter={() => {
+                  if (!isPreviewOpen) {
+                    setHoveredTemplate(template.name);
+                    setActiveHoverTemplate(template);
+                  }
                 }}
-                className="flex-1 min-w-0 flex gap-4 cursor-pointer"
+                onMouseLeave={() => {
+                  setHoveredTemplate(null);
+                  setActiveHoverTemplate(null);
+                }}
+                onMouseMove={(e) => {
+                  if (!isPreviewOpen) {
+                    setMousePos({ x: e.clientX, y: e.clientY });
+                  }
+                }}
+                className={`group relative bg-zinc-950/60 hover:bg-[#0c0c0e] border p-4 rounded-xl transition-all duration-350 flex flex-col gap-4 animate-fadeIn ${
+                  isPreviewOpen
+                    ? "border-emerald-500/30 col-span-1 xl:col-span-2 shadow-[0_0_24px_rgba(16,185,129,0.06)] bg-zinc-950/95"
+                    : "border-zinc-850 hover:border-purple-500/30 sm:flex-row justify-between items-stretch sm:items-center"
+                }`}
               >
-                {/* Template thumbnail preview */}
-                <div className="relative w-20 h-14 sm:w-24 sm:h-16 rounded-lg overflow-hidden border border-zinc-800 bg-black shrink-0 self-start group-hover:scale-105 transition-all shadow-md group-hover:border-purple-500/30">
-                  <TemplateMiniThumbnail name={template.name} />
+                {/* Top/Main Details Row */}
+                <div className={`flex-1 min-w-0 flex flex-col sm:flex-row gap-4 justify-between ${isPreviewOpen ? "items-start w-full border-b border-zinc-900 pb-4" : "items-stretch sm:items-center"}`}>
                   
-                  {/* Absolute Category Tags on the Thumbnail */}
-                  <div className="absolute top-1 left-1 flex flex-col gap-0.5 pointer-events-none">
-                    {(TEMPLATE_CATEGORIES[template.name] || []).slice(0, 1).map((tag) => (
-                      <span 
-                        key={tag} 
-                        className="text-[5px] font-extrabold uppercase tracking-wide bg-purple-950/90 text-purple-300 border border-purple-950 px-1 py-0.2 rounded shadow-sm"
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
+                  {/* Left block: details & thumbnail info */}
+                  <div 
+                    onClick={() => {
+                      setSelectedDetailTemplate(template);
+                      setModalSelectedFilePath(null);
+                      setModalResponsiveMode("desktop");
+                    }}
+                    className="flex-1 min-w-0 flex gap-4 cursor-pointer"
+                  >
+                    {/* Template thumbnail preview */}
+                    <div className="relative w-20 h-14 sm:w-24 sm:h-16 rounded-lg overflow-hidden border border-zinc-800 bg-black shrink-0 self-start group-hover:scale-105 transition-all shadow-md group-hover:border-purple-500/30">
+                      <TemplateMiniThumbnail name={template.name} />
+                      
+                      {/* Absolute Category Tags on the Thumbnail */}
+                      <div className="absolute top-1 left-1 flex flex-col gap-0.5 pointer-events-none">
+                        {(TEMPLATE_CATEGORIES[template.name] || []).slice(0, 1).map((tag) => (
+                          <span 
+                            key={tag} 
+                            className="text-[5px] font-extrabold uppercase tracking-wide bg-purple-950/90 text-purple-300 border border-purple-950 px-1 py-0.2 rounded shadow-sm"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
 
-                  <div className="absolute bottom-1 right-1 p-1 bg-black/85 backdrop-blur-sm border border-zinc-800 rounded-md">
-                    {getMiniIcon(template.icon)}
-                  </div>
-                </div>
-
-                {/* Template details */}
-                <div className="space-y-1.5 flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <h3 className="text-[11px] font-bold uppercase tracking-wider text-zinc-200 group-hover:text-purple-400 transition truncate">
-                      {template.name}
-                    </h3>
-                  </div>
-                  <p className="text-[10px] text-zinc-500 leading-relaxed line-clamp-2 sm:line-clamp-3">
-                    {template.description}
-                  </p>
-                  <div className="flex flex-wrap gap-1 pt-1">
-                    {template.files.map((file) => (
-                      <span
-                        key={file.path}
-                        className="text-[8px] font-mono bg-zinc-900 border border-zinc-850 text-zinc-400 px-1.5 py-0.5 rounded shrink-0"
-                      >
-                        {file.path}
-                      </span>
-                    ))}
-                  </div>
-
-                  {/* Explicit action buttons */}
-                  <div className="flex items-center gap-2 pt-3" onClick={(e) => e.stopPropagation()}>
-                    <button
-                      onClick={() => handleSelectTemplate(template)}
-                      className="px-2.5 py-1 bg-purple-950/45 hover:bg-purple-900/50 text-purple-400 hover:text-purple-300 border border-purple-500/20 hover:border-purple-500/40 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1 shadow-sm"
-                      title="Inject this template into your workspace"
-                    >
-                      <Sparkles className="h-2.5 w-2.5" /> Load Template
-                    </button>
-                    <button
-                      onClick={() => {
-                        setSelectedDetailTemplate(template);
-                        setModalSelectedFilePath(null);
-                        setModalResponsiveMode("desktop");
-                      }}
-                      className="px-2.5 py-1 bg-zinc-900/80 hover:bg-zinc-850 text-zinc-300 hover:text-zinc-100 border border-zinc-800 hover:border-zinc-750 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1"
-                      title="Inspect code and view responsive live simulation"
-                    >
-                      <Eye className="h-2.5 w-2.5 text-zinc-400" /> View Details
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Right Group: Live Interactive Scaled Snapshot Preview */}
-              <div 
-                onClick={(e) => {
-                  // If they click inside this container, they can interact, but click on border/hover indicator doesn't load template
-                  e.stopPropagation();
-                }}
-                className="w-full sm:w-[180px] h-[120px] rounded-lg overflow-hidden border border-zinc-800 bg-black relative shrink-0 self-center shadow-lg group-hover:border-purple-500/40 transition-colors"
-              >
-                {hoveredTemplate === template.name ? (
-                  <div className="w-full h-full relative">
-                    {/* Scaled-down interactive iframe */}
-                    <div 
-                      className="absolute origin-top-left"
-                      style={{
-                        width: "720px",
-                        height: "480px",
-                        transform: "scale(0.25)",
-                        pointerEvents: "auto",
-                      }}
-                    >
-                      <iframe
-                        srcDoc={getTemplateSrcDoc(template)}
-                        sandbox="allow-scripts allow-modals allow-same-origin"
-                        className="w-full h-full border-none bg-black"
-                        title={`${template.name} Hover Preview`}
-                      />
+                      <div className="absolute bottom-1 right-1 p-1 bg-black/85 backdrop-blur-sm border border-zinc-800 rounded-md">
+                        {getMiniIcon(template.icon)}
+                      </div>
                     </div>
-                    {/* Interactive hint tag */}
-                    <div className="absolute bottom-1 right-1 bg-purple-950/90 border border-purple-500/35 px-1 py-0.5 rounded text-[7px] text-purple-300 font-bold uppercase tracking-wider font-sans pointer-events-none select-none z-10 animate-pulse">
-                      Interactive Preview
-                    </div>
-                  </div>
-                ) : (
-                  <div className="w-full h-full relative">
-                    <TemplateSnapshot name={template.name} />
-                    {/* Subtle hover instructions overlay */}
-                    <div className="absolute inset-0 bg-black/40 hover:bg-black/10 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100 duration-300 pointer-events-none">
-                      <div className="bg-zinc-950/95 border border-zinc-800/80 px-2 py-1 rounded text-[8px] font-bold text-zinc-300 uppercase tracking-widest font-mono shadow-xl flex items-center gap-1">
-                        <Sparkles className="h-2 w-2 text-purple-400 animate-spin" />
-                        Hover to play
+
+                    {/* Template details */}
+                    <div className="space-y-1.5 flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <h3 className="text-[11px] font-bold uppercase tracking-wider text-zinc-200 group-hover:text-purple-400 transition truncate">
+                          {template.name}
+                        </h3>
+                      </div>
+                      <p className="text-[10px] text-zinc-500 leading-relaxed line-clamp-2 sm:line-clamp-3">
+                        {template.description}
+                      </p>
+                      <div className="flex flex-wrap gap-1 pt-1">
+                        {template.files.map((file) => (
+                          <span
+                            key={file.path}
+                            className="text-[8px] font-mono bg-zinc-900 border border-zinc-850 text-zinc-400 px-1.5 py-0.5 rounded shrink-0"
+                          >
+                            {file.path}
+                          </span>
+                        ))}
+                      </div>
+
+                      {/* Tech Tags on Card */}
+                      <div className="flex flex-wrap gap-1 pt-2 items-center" onClick={(e) => e.stopPropagation()}>
+                        <span className="text-[7px] font-mono uppercase tracking-wider text-zinc-600 font-bold select-none mr-1">Tags:</span>
+                        {(TEMPLATE_TAGS[template.name] || []).map((tag) => {
+                          const isSelected = selectedTag === tag;
+                          return (
+                            <button
+                              key={tag}
+                              onClick={() => setSelectedTag(selectedTag === tag ? null : tag)}
+                              className={`text-[8px] font-mono px-2 py-0.5 rounded-md border transition-all duration-200 cursor-pointer flex items-center gap-1 ${
+                                isSelected
+                                  ? "bg-purple-950/45 text-purple-300 border-purple-500/50 shadow-[0_0_8px_rgba(168,85,247,0.2)]"
+                                  : "bg-zinc-950/80 text-zinc-500 border-zinc-900 hover:text-zinc-300 hover:border-zinc-800"
+                              }`}
+                            >
+                              <span className={`w-1 h-1 rounded-full ${
+                                tag === "React" ? "bg-[#14b8a6]" :
+                                tag === "TypeScript" ? "bg-[#3b82f6]" :
+                                tag === "Tailwind" ? "bg-[#06b6d4]" :
+                                tag === "Socket.io" ? "bg-[#10b981]" :
+                                tag === "Framer Motion" ? "bg-[#ec4899]" :
+                                tag === "HTML5" ? "bg-[#f97316]" :
+                                tag === "UI" ? "bg-[#8b5cf6]" :
+                                tag === "Data" ? "bg-[#0ea5e9]" :
+                                tag === "Animations" ? "bg-[#f43f5e]" :
+                                tag === "Interactive" ? "bg-[#10b981]" :
+                                tag === "Utility" ? "bg-[#f59e0b]" :
+                                tag === "Creative" ? "bg-[#ec4899]" :
+                                tag === "Editor" ? "bg-[#10b981]" :
+                                tag === "Dashboard" ? "bg-[#a855f7]" :
+                                "bg-zinc-600"
+                              }`} />
+                              {tag}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Explicit action buttons */}
+                      <div className="flex flex-wrap items-center gap-2 pt-3" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => handleSelectTemplate(template)}
+                          className="px-2.5 py-1 bg-purple-950/45 hover:bg-purple-900/50 text-purple-400 hover:text-purple-300 border border-purple-500/20 hover:border-purple-500/40 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1 shadow-sm"
+                          title="Inject this template into your workspace"
+                        >
+                          <Sparkles className="h-2.5 w-2.5" /> Load Template
+                        </button>
+                        <button
+                          onClick={() => {
+                            setQuickPreviewTemplate(template);
+                            setQuickPreviewSelectedFilePath(template.files[0]?.path || null);
+                            setQuickPreviewCopied(false);
+                          }}
+                          className="px-2.5 py-1 bg-purple-900/20 hover:bg-purple-900/30 text-purple-300 hover:text-purple-200 border border-purple-500/25 hover:border-purple-500/40 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1"
+                          title="Quick preview file structure and read key files"
+                        >
+                          <FileText className="h-2.5 w-2.5 text-purple-400" /> Quick Preview
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSelectedDetailTemplate(template);
+                            setModalSelectedFilePath(null);
+                            setModalResponsiveMode("desktop");
+                          }}
+                          className="px-2.5 py-1 bg-zinc-900/80 hover:bg-zinc-850 text-zinc-300 hover:text-zinc-100 border border-zinc-800 hover:border-zinc-750 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1"
+                          title="Inspect code and view responsive live simulation"
+                        >
+                          <Eye className="h-2.5 w-2.5 text-zinc-400" /> View Details
+                        </button>
+                        {/* Inline live preview switch */}
+                        <button
+                          onClick={() => toggleCardPreview(template.name)}
+                          className={`px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer flex items-center gap-1 border ${
+                            isPreviewOpen
+                              ? "bg-emerald-950/45 text-emerald-400 border-emerald-500/40 shadow-[0_0_12px_rgba(16,185,129,0.15)]"
+                              : "bg-zinc-900/80 hover:bg-zinc-850 text-zinc-300 hover:text-zinc-100 border border-zinc-800 hover:border-zinc-750"
+                          }`}
+                          title="Open instant inline live preview box"
+                        >
+                          <Monitor className="h-2.5 w-2.5" />
+                          {isPreviewOpen ? "Hide Sandbox" : "Live Sandbox"}
+                        </button>
                       </div>
                     </div>
                   </div>
-                )}
+
+                  {/* Right Group: Live Interactive Scaled Snapshot Preview or Visual File Tree (Hidden when inline sandbox is active) */}
+                  {!isPreviewOpen && (
+                    <div 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                      }}
+                      className="w-full sm:w-[180px] h-[120px] rounded-lg overflow-hidden border border-zinc-800 bg-black relative shrink-0 self-center shadow-lg group-hover:border-purple-500/40 transition-colors flex flex-col"
+                    >
+                      {/* Tabs switch to select Panel Mode */}
+                      <div className="absolute top-1.5 right-1.5 flex items-center bg-black/80 backdrop-blur-md border border-zinc-800 p-0.5 rounded-md z-30 select-none">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setRightPanelModes((prev) => ({ ...prev, [template.name]: "demo" }));
+                          }}
+                          className={`px-1.5 py-0.5 rounded text-[6.5px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                            (rightPanelModes[template.name] || "demo") === "demo"
+                              ? "bg-purple-950/50 text-purple-400 border border-purple-500/30"
+                              : "text-zinc-500 hover:text-zinc-300 border border-transparent"
+                          }`}
+                        >
+                          Demo
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setRightPanelModes((prev) => ({ ...prev, [template.name]: "structure" }));
+                          }}
+                          className={`px-1.5 py-0.5 rounded text-[6.5px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                            (rightPanelModes[template.name] || "demo") === "structure"
+                              ? "bg-purple-950/50 text-purple-400 border border-purple-500/30"
+                              : "text-zinc-500 hover:text-zinc-300 border border-transparent"
+                          }`}
+                        >
+                          Structure
+                        </button>
+                      </div>
+
+                      {/* Display either Architecture Tree or Live Demo IFrame */}
+                      {(rightPanelModes[template.name] || "demo") === "structure" ? (
+                        <div className="w-full h-full relative">
+                          <FileStructureCanvas template={template} />
+                        </div>
+                      ) : hoveredTemplate === template.name ? (
+                        <div className="w-full h-full relative">
+                          {/* Scaled-down interactive iframe */}
+                          <div 
+                            className="absolute origin-top-left"
+                            style={{
+                              width: "720px",
+                              height: "480px",
+                              transform: "scale(0.25)",
+                              pointerEvents: "auto",
+                            }}
+                          >
+                            <iframe
+                              srcDoc={getTemplateSrcDoc(template)}
+                              sandbox="allow-scripts allow-modals allow-same-origin"
+                              className="w-full h-full border-none bg-black"
+                              title={`${template.name} Hover Preview`}
+                            />
+                          </div>
+                          {/* Interactive hint tag */}
+                          <div className="absolute bottom-1 right-1 bg-purple-950/90 border border-purple-500/35 px-1 py-0.5 rounded text-[7px] text-purple-300 font-bold uppercase tracking-wider font-sans pointer-events-none select-none z-10 animate-pulse">
+                            Interactive Preview
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="w-full h-full relative">
+                          <TemplateSnapshot name={template.name} />
+                          {/* Subtle hover instructions overlay */}
+                          <div className="absolute inset-0 bg-black/40 hover:bg-black/10 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100 duration-300 pointer-events-none">
+                            <div className="bg-zinc-950/95 border border-zinc-850/80 px-2 py-1 rounded text-[8px] font-bold text-zinc-300 uppercase tracking-widest font-mono shadow-xl flex items-center gap-1">
+                              <Sparkles className="h-2 w-2 text-purple-400 animate-spin" />
+                              Hover to play
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Inline Live Preview Sandbox Box */}
+                <AnimatePresence>
+                  {isPreviewOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ type: "spring", stiffness: 350, damping: 28 }}
+                      className="w-full flex flex-col bg-black border border-zinc-850 rounded-xl overflow-hidden shadow-2xl relative"
+                    >
+                      {/* Interactive Header */}
+                      <div className="px-4 py-2 bg-zinc-950 border-b border-zinc-900 flex items-center justify-between font-mono select-none">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-red-500/20 border border-red-500/40"></span>
+                          <span className="w-2.5 h-2.5 rounded-full bg-yellow-500/20 border border-yellow-500/40"></span>
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/20 border border-emerald-500/40"></span>
+                          <span className="text-[9px] text-zinc-500 ml-2 font-bold uppercase tracking-wide">
+                            Live Card Sandbox
+                          </span>
+                        </div>
+
+                        <div className="hidden md:flex items-center bg-zinc-900/60 border border-zinc-850 px-3 py-0.5 rounded-lg text-[8.5px] text-zinc-500 max-w-[280px] truncate">
+                          sandbox://play.canvaslab.io/{template.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={(e) => reloadCardIframe(template.name, e)}
+                            className="p-1 hover:bg-zinc-900 text-zinc-500 hover:text-zinc-300 rounded border border-transparent hover:border-zinc-800 transition flex items-center justify-center cursor-pointer"
+                            title="Reset simulation state"
+                          >
+                            <RefreshCw className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => toggleCardPreview(template.name)}
+                            className="p-1 hover:bg-zinc-900 text-zinc-500 hover:text-red-400 rounded border border-transparent hover:border-zinc-800 transition flex items-center justify-center cursor-pointer"
+                            title="Close simulation"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Interactive iframe area */}
+                      <div className="w-full h-[280px] bg-black relative">
+                        <iframe
+                          key={cardIframeKeys[template.name] || 0}
+                          srcDoc={getTemplateSrcDoc(template)}
+                          sandbox="allow-scripts allow-modals allow-same-origin"
+                          className="w-full h-full border-none bg-black"
+                          title={`${template.name} Inline Live Preview`}
+                        />
+                      </div>
+
+                      {/* Simulation Controls footer */}
+                      <div className="px-4 py-2 bg-zinc-950 border-t border-zinc-900 flex items-center justify-between text-[9px] font-mono text-zinc-500 select-none">
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                          <span className="text-emerald-400 font-bold uppercase tracking-widest text-[8px]">Active Play Session</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => handleSelectTemplate(template)}
+                            className="text-purple-400 hover:text-purple-300 font-bold uppercase flex items-center gap-1 cursor-pointer hover:underline"
+                          >
+                            <Sparkles className="h-3 w-3" />
+                            Load into workspace
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -521,17 +867,17 @@ export const Gallery: React.FC<GalleryProps> = ({ onLoadTemplate }) => {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.92, y: 12 }}
             transition={{ type: "spring", stiffness: 350, damping: 26 }}
-            className="fixed z-[9999] pointer-events-none w-[360px] h-[240px] bg-[#09090b]/95 backdrop-blur-xl border border-purple-500/30 rounded-xl overflow-hidden shadow-[0_0_50px_rgba(168,85,247,0.25)] flex flex-col"
+            className="hidden md:flex fixed z-[9999] pointer-events-none w-[620px] h-[280px] bg-[#09090b]/95 backdrop-blur-xl border border-purple-500/30 rounded-xl overflow-hidden shadow-[0_0_50px_rgba(168,85,247,0.25)] flex-col"
             style={{
-              left: `${Math.min(window.innerWidth - 380, mousePos.x + 20)}px`,
-              top: `${Math.min(window.innerHeight - 260, mousePos.y + 20)}px`,
+              left: `${Math.min(window.innerWidth - 640, mousePos.x + 20)}px`,
+              top: `${Math.min(window.innerHeight - 300, mousePos.y + 20)}px`,
             }}
           >
             {/* Popover Header */}
             <div className="px-3.5 py-2 border-b border-zinc-800/80 bg-black/70 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2 min-w-0">
                 <span className="p-1 bg-purple-500/10 border border-purple-500/25 rounded-md text-purple-400">
-                  <Palette className="h-3.5 w-3.5" />
+                  <Code className="h-3.5 w-3.5" />
                 </span>
                 <span className="text-[10px] font-black uppercase tracking-wider text-zinc-200 truncate">
                   {activeHoverTemplate.name}
@@ -540,34 +886,79 @@ export const Gallery: React.FC<GalleryProps> = ({ onLoadTemplate }) => {
               <div className="flex items-center gap-1.5 shrink-0">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                 <span className="text-[8px] font-mono font-bold text-emerald-400 uppercase tracking-widest">
-                  Live View
+                  Live Preview &amp; Code Structure
                 </span>
               </div>
             </div>
 
-            {/* Live-Rendered Iframe Body */}
-            <div className="flex-1 bg-black relative overflow-hidden">
-              <div 
-                className="absolute origin-top-left"
-                style={{
-                  width: "720px",
-                  height: "400px",
-                  transform: "scale(0.5)",
-                }}
-              >
-                <iframe
-                  srcDoc={getTemplateSrcDoc(activeHoverTemplate)}
-                  sandbox="allow-scripts allow-modals allow-same-origin"
-                  className="w-full h-full border-none bg-black"
-                  title={`${activeHoverTemplate.name} Popover Preview`}
-                />
+            {/* Split Dual-Panel Body */}
+            <div className="flex-1 flex overflow-hidden divide-x divide-zinc-900">
+              {/* Left Column: Live Rendered Iframe */}
+              <div className="w-[280px] bg-black relative shrink-0 overflow-hidden">
+                <div 
+                  className="absolute origin-top-left"
+                  style={{
+                    width: "560px",
+                    height: "440px",
+                    transform: "scale(0.5)",
+                  }}
+                >
+                  <iframe
+                    srcDoc={getTemplateSrcDoc(activeHoverTemplate)}
+                    sandbox="allow-scripts allow-modals allow-same-origin"
+                    className="w-full h-full border-none bg-black"
+                    title={`${activeHoverTemplate.name} Popover Live Preview`}
+                  />
+                </div>
+              </div>
+
+              {/* Right Column: Code Structure & Scrollable Read-Only Preview */}
+              <div className="flex-1 bg-zinc-950/80 p-3 flex flex-col gap-2 min-w-0 overflow-hidden">
+                <div className="flex items-center justify-between select-none shrink-0">
+                  <span className="text-[8px] font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1">
+                    <FileText className="h-3 w-3 text-purple-400" /> File Structure
+                  </span>
+                  <span className="text-[7.5px] font-mono text-zinc-500">
+                    {activeHoverTemplate.files.length} Files Total
+                  </span>
+                </div>
+
+                {/* File list row */}
+                <div className="flex flex-wrap gap-1 max-h-[55px] overflow-y-auto scrollbar-thin shrink-0 pb-1 border-b border-zinc-900">
+                  {activeHoverTemplate.files.map((file) => (
+                    <div 
+                      key={file.path} 
+                      className="flex items-center gap-1 bg-zinc-900/60 border border-zinc-850 px-1.5 py-0.5 rounded text-[7.5px] font-mono text-zinc-300"
+                    >
+                      <Code className="h-2 w-2 text-purple-400" />
+                      <span className="truncate max-w-[90px]">{file.path}</span>
+                      <span className="text-[6.5px] text-zinc-500">({file.content.split('\n').length} lines)</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Read-Only File Content Preview */}
+                <div className="flex-1 flex flex-col min-h-0">
+                  <div className="flex items-center justify-between text-[7px] font-mono text-zinc-500 mb-1 select-none shrink-0">
+                    <span className="truncate max-w-[150px]">PREVIEWING: {activeHoverTemplate.files[0]?.path}</span>
+                    <span className="text-[6px] uppercase bg-purple-950/20 text-purple-400 border border-purple-500/10 px-1 rounded">
+                      Scrollable Read-Only
+                    </span>
+                  </div>
+                  
+                  <div className="flex-1 min-h-0 bg-black/90 rounded-lg border border-zinc-900 p-2 overflow-y-auto scrollbar-thin text-left select-none">
+                    <pre className="text-[7px] leading-relaxed font-mono text-zinc-400 whitespace-pre">
+                      {activeHoverTemplate.files[0]?.content || "// Empty File"}
+                    </pre>
+                  </div>
+                </div>
               </div>
             </div>
 
             {/* Popover Footer Info */}
-            <div className="px-3 py-1.5 border-t border-zinc-900 bg-black/85 flex items-center justify-between shrink-0 text-[8px] font-mono text-zinc-500">
-              <span>{activeHoverTemplate.files.length} Source files</span>
-              <span className="text-purple-400 font-bold uppercase">Template Preview</span>
+            <div className="px-3 py-1.5 border-t border-zinc-900 bg-black/85 flex items-center justify-between shrink-0 text-[8px] font-mono text-zinc-500 select-none">
+              <span>Hover template to explore files • Click card to open full responsive workspace</span>
+              <span className="text-purple-400 font-bold uppercase">Template Inspect</span>
             </div>
           </motion.div>
         )}
@@ -862,6 +1253,197 @@ export const Gallery: React.FC<GalleryProps> = ({ onLoadTemplate }) => {
                 <span className="text-zinc-500">
                   Select files to inspect or choose "Live Sandbox View" to interact.
                 </span>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* State-of-the-Art Quick Preview Modal */}
+      <AnimatePresence>
+        {quickPreviewTemplate && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[10005] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 overflow-hidden"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 15, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.95, y: 15, opacity: 0 }}
+              transition={{ type: "spring", damping: 30, stiffness: 300 }}
+              className="w-full max-w-5xl h-[85vh] bg-zinc-950 border border-zinc-850 rounded-2xl shadow-[0_0_80px_rgba(168,85,247,0.15)] flex flex-col overflow-hidden"
+            >
+              {/* Header */}
+              <div className="px-6 py-4 bg-zinc-950 border-b border-zinc-900 flex items-center justify-between flex-shrink-0">
+                <div className="flex items-center gap-3">
+                  <span className="p-2 bg-purple-500/10 border border-purple-500/20 rounded-xl text-purple-400">
+                    <FileText className="h-5 w-5" />
+                  </span>
+                  <div>
+                    <h2 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2">
+                      {quickPreviewTemplate.name}
+                      <span className="text-[9px] bg-purple-950 text-purple-400 border border-purple-500/20 px-2 py-0.5 rounded font-bold">Quick Inspect</span>
+                    </h2>
+                    <p className="text-[10px] text-zinc-500">
+                      Explore template files and read-only code preview before loading
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setQuickPreviewTemplate(null)}
+                  className="p-1.5 hover:bg-zinc-900 border border-transparent hover:border-zinc-850 rounded-lg text-zinc-400 hover:text-zinc-200 transition cursor-pointer flex items-center justify-center"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {/* Workspace split view */}
+              <div className="flex-1 flex overflow-hidden">
+                {/* Left side: Project File Structure list */}
+                <div className="w-[280px] bg-zinc-950/80 border-r border-zinc-900 flex flex-col shrink-0 p-4 space-y-4">
+                  <div className="space-y-1 bg-zinc-900/30 p-3 rounded-lg border border-zinc-850">
+                    <span className="text-[8px] font-mono uppercase tracking-wider text-zinc-500 font-bold block">Description</span>
+                    <p className="text-[10px] text-zinc-400 leading-relaxed font-sans line-clamp-3">
+                      {quickPreviewTemplate.description}
+                    </p>
+                  </div>
+
+                  <div className="space-y-2 flex-1 flex flex-col min-h-0">
+                    <div className="flex items-center justify-between shrink-0">
+                      <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider font-mono">
+                        📁 File Structure
+                      </span>
+                      <span className="text-[8px] text-zinc-500 font-mono">
+                        {quickPreviewTemplate.files.length} Files
+                      </span>
+                    </div>
+
+                    <div className="space-y-1.5 overflow-y-auto flex-1 scrollbar-thin pr-1">
+                      {quickPreviewTemplate.files.map((file) => {
+                        const isSelected = quickPreviewSelectedFilePath === file.path;
+                        const linesCount = file.content.split('\n').length;
+                        
+                        return (
+                          <button
+                            key={file.path}
+                            onClick={() => {
+                              setQuickPreviewSelectedFilePath(file.path);
+                              setQuickPreviewCopied(false);
+                            }}
+                            className={`w-full flex items-center justify-between p-2 rounded-lg text-[10px] font-mono transition-all border text-left cursor-pointer ${
+                              isSelected
+                                ? "bg-purple-950/20 text-purple-300 border-purple-500/25 font-bold"
+                                : "bg-transparent text-zinc-500 border-transparent hover:bg-zinc-900/30 hover:text-zinc-400"
+                            }`}
+                          >
+                            <span className="flex items-center gap-1.5 min-w-0">
+                              <Code className={`h-3.5 w-3.5 shrink-0 ${isSelected ? "text-purple-400" : "text-zinc-600"}`} />
+                              <span className="truncate">{file.path}</span>
+                            </span>
+                            <span className="text-[8px] font-mono text-zinc-600 shrink-0">
+                              {linesCount}L
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right side: Read-Only Code Viewer with line numbers */}
+                <div className="flex-1 bg-black flex flex-col overflow-hidden">
+                  {(() => {
+                    const activeFile = quickPreviewTemplate.files.find(f => f.path === quickPreviewSelectedFilePath);
+                    const fileContent = activeFile?.content || "// No content";
+                    const lines = fileContent.split('\n');
+                    
+                    return (
+                      <>
+                        {/* File details bar */}
+                        <div className="px-5 py-3 border-b border-zinc-900 bg-zinc-950 flex items-center justify-between flex-shrink-0 select-none">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span className="text-xs font-mono font-bold text-purple-400 truncate">
+                              {quickPreviewSelectedFilePath}
+                            </span>
+                            <span className="text-[8px] uppercase tracking-wider font-mono text-zinc-500 border border-zinc-900 px-1.5 py-0.5 rounded bg-zinc-900/40 shrink-0">
+                              {lines.length} Lines
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(fileContent);
+                                setQuickPreviewCopied(true);
+                                setTimeout(() => setQuickPreviewCopied(false), 2000);
+                              }}
+                              className="px-2.5 py-1 bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 hover:border-zinc-700 text-zinc-300 hover:text-zinc-100 rounded-lg text-[9px] font-bold uppercase tracking-wider transition flex items-center gap-1.5 cursor-pointer"
+                            >
+                              {quickPreviewCopied ? (
+                                <>
+                                  <CheckCircle className="h-3 w-3 text-emerald-400" />
+                                  <span className="text-emerald-400">Copied!</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="h-3 w-3 text-zinc-500" />
+                                  <span>Copy Code</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Read-Only Code Panel with custom line numbers */}
+                        <div className="flex-1 overflow-auto p-5 bg-black/95 font-mono text-[11px] select-text selection:bg-purple-900/30 selection:text-purple-200 scrollbar-thin">
+                          <div className="flex leading-relaxed min-w-full">
+                            {/* Numbers Column */}
+                            <div className="text-zinc-600 text-right pr-4 select-none border-r border-zinc-900 mr-4 text-[10px] w-8 shrink-0">
+                              {lines.map((_, i) => (
+                                <div key={i}>{i + 1}</div>
+                              ))}
+                            </div>
+                            
+                            {/* Real Code Column */}
+                            <pre className="text-zinc-300 overflow-x-auto whitespace-pre flex-1 text-[10.5px]">
+                              <code>{fileContent}</code>
+                            </pre>
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              {/* Bottom Footer Actions block */}
+              <div className="px-6 py-4 bg-zinc-950 border-t border-zinc-900 flex items-center justify-between flex-shrink-0">
+                <span className="text-[10px] text-zinc-500 font-mono flex items-center gap-1">
+                  <Sparkles className="h-3 w-3 text-purple-400 animate-pulse" /> Confirm below to inject files into active workspace
+                </span>
+
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setQuickPreviewTemplate(null)}
+                    className="px-4 py-2 bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 hover:border-zinc-750 text-zinc-400 hover:text-zinc-200 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      const templateToLoad = quickPreviewTemplate;
+                      setQuickPreviewTemplate(null);
+                      handleSelectTemplate(templateToLoad);
+                    }}
+                    className="px-5 py-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white text-[10px] font-black uppercase tracking-widest rounded-lg transition-all cursor-pointer flex items-center gap-2 shadow-[0_0_20px_rgba(168,85,247,0.3)]"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" /> Confirm Load Template
+                  </button>
+                </div>
               </div>
             </motion.div>
           </motion.div>

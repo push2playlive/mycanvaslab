@@ -19,9 +19,7 @@ app.post("/api/ai/generate", async (req, res) => {
       chatHistory,
       provider = "gemini",
       customGeminiKey,
-      customOpenaiKey,
-      geminiModel = "gemini-3.5-flash",
-      openaiModel = "gpt-4o-mini"
+      geminiModel = "gemini-3.5-flash"
     } = req.body;
 
     if (!prompt) {
@@ -74,110 +72,67 @@ Strictly follow these rules:
 
     const fullPrompt = `${filesContext}\n\n${historyContext}\n\nUser Prompt: ${prompt}`;
 
-    if (provider === "openai") {
-      const apiKeyToUse = customOpenaiKey || process.env.OPENAI_API_KEY;
-      if (!apiKeyToUse) {
-        throw new Error(
-          "OpenAI API Key is missing. Please add a valid key in Settings (Bring Your Own Key) or set OPENAI_API_KEY on the server."
-        );
-      }
-
-      const openaiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${apiKeyToUse}`,
-        },
-        body: JSON.stringify({
-          model: openaiModel,
-          response_format: { type: "json_object" },
-          messages: [
-            {
-              role: "system",
-              content: `${systemInstruction}\n\nIMPORTANT: You must return a valid JSON object matching the schema: { "explanation": "friendly string", "files": [ { "path": "path/string", "content": "file content string" } ] }`,
-            },
-            { role: "user", content: fullPrompt },
-          ],
-        }),
-      });
-
-      if (!openaiResponse.ok) {
-        const errData = await openaiResponse.json().catch(() => ({}));
-        const errMsg = errData.error?.message || `OpenAI returned status ${openaiResponse.status}`;
-        throw new Error(errMsg);
-      }
-
-      const openaidata: any = await openaiResponse.json();
-      const content = openaidata.choices?.[0]?.message?.content;
-      if (!content) {
-        throw new Error("No response generated from OpenAI.");
-      }
-
-      const parsedResult = JSON.parse(content);
-      return res.json(parsedResult);
-    } else {
-      // GEMINI PROVIDER
-      const apiKeyToUse = customGeminiKey || process.env.GEMINI_API_KEY;
-      if (!apiKeyToUse) {
-        throw new Error(
-          "Gemini API Key is missing. Please add a valid key in Settings (Bring Your Own Key) or set GEMINI_API_KEY on the server."
-        );
-      }
-
-      const ai = new GoogleGenAI({
-        apiKey: apiKeyToUse,
-        httpOptions: {
-          headers: {
-            "User-Agent": "aistudio-build",
-          },
-        },
-      });
-
-      const response = await ai.models.generateContent({
-        model: geminiModel,
-        contents: fullPrompt,
-        config: {
-          systemInstruction,
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              explanation: {
-                type: Type.STRING,
-                description: "A friendly summary of changes or the chat reply.",
-              },
-              files: {
-                type: Type.ARRAY,
-                description: "The list of files created, modified, or updated.",
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    path: {
-                      type: Type.STRING,
-                      description: "Relative path of the file, e.g. index.html",
-                    },
-                    content: {
-                      type: Type.STRING,
-                      description: "Full text content of the file. Must be complete.",
-                    },
-                  },
-                  required: ["path", "content"],
-                },
-              },
-            },
-            required: ["explanation", "files"],
-          },
-        },
-      });
-
-      const resultText = response.text;
-      if (!resultText) {
-        throw new Error("No response generated from the Gemini model.");
-      }
-
-      const parsedResult = JSON.parse(resultText);
-      return res.json(parsedResult);
+    // GEMINI PROVIDER
+    const apiKeyToUse = customGeminiKey || process.env.GEMINI_API_KEY;
+    if (!apiKeyToUse) {
+      throw new Error(
+        "Gemini API Key is missing. Please add a valid key in Settings (Bring Your Own Key) or set GEMINI_API_KEY on the server."
+      );
     }
+
+    const ai = new GoogleGenAI({
+      apiKey: apiKeyToUse,
+      httpOptions: {
+        headers: {
+          "User-Agent": "aistudio-build",
+        },
+      },
+    });
+
+    const response = await ai.models.generateContent({
+      model: geminiModel,
+      contents: fullPrompt,
+      config: {
+        systemInstruction,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            explanation: {
+              type: Type.STRING,
+              description: "A friendly summary of changes or the chat reply.",
+            },
+            files: {
+              type: Type.ARRAY,
+              description: "The list of files created, modified, or updated.",
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  path: {
+                    type: Type.STRING,
+                    description: "Relative path of the file, e.g. index.html",
+                  },
+                  content: {
+                    type: Type.STRING,
+                    description: "Full text content of the file. Must be complete.",
+                  },
+                },
+                required: ["path", "content"],
+              },
+            },
+          },
+          required: ["explanation", "files"],
+        },
+      },
+    });
+
+    const resultText = response.text;
+    if (!resultText) {
+      throw new Error("No response generated from the Gemini model.");
+    }
+
+    const parsedResult = JSON.parse(resultText);
+    return res.json(parsedResult);
   } catch (error: any) {
     console.error("AI Generation Error:", error);
     return res.status(500).json({

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { VirtualFile, Snapshot } from "../types";
-import { GitCommit, History, RotateCcw, Eye, ArrowRight, Save } from "lucide-react";
+import { GitCommit, History, RotateCcw, Eye, ArrowRight, Save, Download } from "lucide-react";
 import { CompareModal } from "./CompareModal";
 
 interface VersionControlProps {
@@ -42,6 +42,22 @@ export const VersionControl: React.FC<VersionControlProps> = ({
       newContent,
     });
     setIsCompareOpen(true);
+  };
+
+  const handleDownloadSnapshot = (snap: Snapshot) => {
+    try {
+      const blob = new Blob([JSON.stringify(snap, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `snapshot-${snap.id}-${snap.message.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Failed to download snapshot", error);
+    }
   };
 
   return (
@@ -148,13 +164,23 @@ export const VersionControl: React.FC<VersionControlProps> = ({
               Snapshot Details
             </span>
             {selectedSnapshot && (
-              <button
-                onClick={() => onRestoreSnapshot(selectedSnapshot)}
-                className="px-3 py-1 bg-purple-600 hover:bg-purple-500 text-white text-[10px] font-semibold rounded-md transition-colors flex items-center gap-1.5 shadow"
-              >
-                <RotateCcw className="h-3 w-3" />
-                Rollback to this Commit
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleDownloadSnapshot(selectedSnapshot)}
+                  className="px-3 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-[10px] font-semibold rounded-md transition-colors flex items-center gap-1.5 border border-zinc-700"
+                  title="Download Snapshot (JSON)"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  Download JSON
+                </button>
+                <button
+                  onClick={() => onRestoreSnapshot(selectedSnapshot)}
+                  className="px-3 py-1 bg-purple-600 hover:bg-purple-500 text-white text-[10px] font-semibold rounded-md transition-colors flex items-center gap-1.5 shadow"
+                >
+                  <RotateCcw className="h-3 w-3" />
+                  Rollback to this Commit
+                </button>
+              </div>
             )}
           </div>
 

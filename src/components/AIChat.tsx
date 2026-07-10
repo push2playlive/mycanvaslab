@@ -501,12 +501,37 @@ Keep files completely intact, updating details seamlessly.`;
 
       const fullPromptWithDirective = `${customSystemPromptContext}${directive}\n\nUser request: ${promptText}`;
 
-      if (config.provider === "ollama") {
-        const response = await fetch(config.ollamaUrl, {
+      const isOllamaFamily = config.provider.startsWith("ollama");
+
+      if (isOllamaFamily) {
+        let targetUrl = config.ollamaUrl;
+        let targetModel = config.ollamaModel;
+
+        if (config.provider === "ollama_agent_1") {
+          targetUrl = config.ollamaAgent1Url || "http://localhost:11434/api/generate";
+          targetModel = config.ollamaAgent1Model || "codellama";
+        } else if (config.provider === "ollama_agent_2") {
+          targetUrl = config.ollamaAgent2Url || "http://localhost:11434/api/generate";
+          targetModel = config.ollamaAgent2Model || "llama3";
+        } else if (config.provider === "ollama_agent_3") {
+          targetUrl = config.ollamaAgent3Url || "http://localhost:11434/api/generate";
+          targetModel = config.ollamaAgent3Model || "mistral";
+        } else if (config.provider === "ollama_agent_4") {
+          targetUrl = config.ollamaAgent4Url || "http://localhost:11434/api/generate";
+          targetModel = config.ollamaAgent4Model || "phi3";
+        } else if (config.provider === "ollama_agent_5") {
+          targetUrl = config.ollamaAgent5Url || "http://localhost:11434/api/generate";
+          targetModel = config.ollamaAgent5Model || "gemma2";
+        } else if (config.provider === "ollama_agent_6") {
+          targetUrl = config.ollamaAgent6Url || "http://localhost:11434/api/generate";
+          targetModel = config.ollamaAgent6Model || "qwen2";
+        }
+
+        const response = await fetch(targetUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            model: config.ollamaModel,
+            model: targetModel,
             prompt: `Workspace Files Context:\n${JSON.stringify(filesToSend, null, 2)}\n\n${fullPromptWithDirective}\n\nRespond in JSON matching the schema:\n{ "explanation": "friendly message string", "files": [ { "path": "filename", "content": "file contents" } ] }`,
             stream: false,
           }),
@@ -546,9 +571,7 @@ Keep files completely intact, updating details seamlessly.`;
             })),
             provider: config.provider,
             geminiModel: config.geminiModel,
-            openaiModel: config.openaiModel,
             customGeminiKey: config.customGeminiKey,
-            customOpenaiKey: config.customOpenaiKey,
           }),
         });
 
@@ -956,9 +979,9 @@ Let's begin writing the application code based on this finalized specifications 
 
       {/* Provider Selector Panel (Collapsible / Compact) */}
       <div className="p-2 border-b border-[#1ae854]/12 flex flex-col gap-1.5 bg-[#010301]/80">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-1.5">
           <span className="text-[9px] text-zinc-500 font-mono">LLM Proxy Engine:</span>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-1 justify-end">
             <button
               onClick={() => onChangeConfig({ ...config, provider: "gemini" })}
               className={`text-[9px] font-bold px-1.5 py-0.5 rounded transition ${
@@ -968,20 +991,69 @@ Let's begin writing the application code based on this finalized specifications 
               Gemini
             </button>
             <button
-              onClick={() => onChangeConfig({ ...config, provider: "openai" })}
-              className={`text-[9px] font-bold px-1.5 py-0.5 rounded transition ${
-                config.provider === "openai" ? "text-[#1ae854] bg-[#1ae854]/10 border border-[#1ae854]/30" : "text-zinc-300 hover:text-white"
-              }`}
-            >
-              OpenAI
-            </button>
-            <button
               onClick={() => onChangeConfig({ ...config, provider: "ollama" })}
               className={`text-[9px] font-bold px-1.5 py-0.5 rounded transition ${
                 config.provider === "ollama" ? "text-[#1ae854] bg-[#1ae854]/10 border border-[#1ae854]/30" : "text-zinc-300 hover:text-white"
               }`}
             >
-              Ollama
+              Ollama (Base)
+            </button>
+            <button
+              onClick={() => onChangeConfig({ ...config, provider: "ollama_agent_1" })}
+              className={`text-[9px] font-bold px-1.5 py-0.5 rounded transition ${
+                config.provider === "ollama_agent_1" ? "text-purple-400 bg-purple-500/10 border border-purple-500/30" : "text-zinc-300 hover:text-white"
+              }`}
+              title={`Agent 1: ${config.ollamaAgent1Model || "codellama"}`}
+            >
+              {config.ollamaAgent1Name || "Agent 1"}
+            </button>
+            <button
+              onClick={() => onChangeConfig({ ...config, provider: "ollama_agent_2" })}
+              className={`text-[9px] font-bold px-1.5 py-0.5 rounded transition ${
+                config.provider === "ollama_agent_2" ? "text-pink-400 bg-pink-500/10 border border-pink-500/30" : "text-zinc-300 hover:text-white"
+              }`}
+              title={`Agent 2: ${config.ollamaAgent2Model || "llama3"}`}
+            >
+              {config.ollamaAgent2Name || "Agent 2"}
+            </button>
+            <button
+              onClick={() => onChangeConfig({ ...config, provider: "ollama_agent_3" })}
+              className={`text-[9px] font-bold px-1.5 py-0.5 rounded transition ${
+                config.provider === "ollama_agent_3" ? "text-emerald-400 bg-emerald-500/10 border border-emerald-500/30" : "text-zinc-300 hover:text-white"
+              }`}
+              title={`Agent 3: ${config.ollamaAgent3Model || "mistral"}`}
+            >
+              {config.ollamaAgent3Name || "Agent 3"}
+            </button>
+            <button
+              type="button"
+              onClick={() => onChangeConfig({ ...config, provider: "ollama_agent_4" })}
+              className={`text-[9px] font-bold px-1.5 py-0.5 rounded transition ${
+                config.provider === "ollama_agent_4" ? "text-amber-400 bg-amber-500/10 border border-amber-500/30" : "text-zinc-300 hover:text-white"
+              }`}
+              title={`Agent 4: ${config.ollamaAgent4Model || "phi3"}`}
+            >
+              {config.ollamaAgent4Name || "Agent 4"}
+            </button>
+            <button
+              type="button"
+              onClick={() => onChangeConfig({ ...config, provider: "ollama_agent_5" })}
+              className={`text-[9px] font-bold px-1.5 py-0.5 rounded transition ${
+                config.provider === "ollama_agent_5" ? "text-cyan-400 bg-cyan-500/10 border border-cyan-500/30" : "text-zinc-300 hover:text-white"
+              }`}
+              title={`Agent 5: ${config.ollamaAgent5Model || "gemma2"}`}
+            >
+              {config.ollamaAgent5Name || "Agent 5"}
+            </button>
+            <button
+              type="button"
+              onClick={() => onChangeConfig({ ...config, provider: "ollama_agent_6" })}
+              className={`text-[9px] font-bold px-1.5 py-0.5 rounded transition ${
+                config.provider === "ollama_agent_6" ? "text-orange-400 bg-orange-500/10 border border-orange-500/30" : "text-zinc-300 hover:text-white"
+              }`}
+              title={`Agent 6: ${config.ollamaAgent6Model || "qwen2"}`}
+            >
+              {config.ollamaAgent6Name || "Agent 6"}
             </button>
           </div>
         </div>
