@@ -1,12 +1,14 @@
 import React, { useState } from "react";
-import { Palette, Calculator, FileText, CheckCircle, HelpCircle, Code, Sparkles, Eye, RefreshCw, Monitor, Tablet, Smartphone, X, Copy, Check, Grid, List } from "lucide-react";
+import { Palette, Calculator, FileText, CheckCircle, HelpCircle, Code, Sparkles, Eye, RefreshCw, Monitor, Tablet, Smartphone, X, Copy, Check, Grid, List, GitCompare, AlertTriangle, Search } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { TEMPLATES } from "../data/templates";
-import { Template } from "../types";
+import { Template, VirtualFile } from "../types";
 import { FileStructureCanvas } from "./FileStructureCanvas";
+import { DiffViewer } from "./DiffViewer";
 
 interface GalleryProps {
   onLoadTemplate: (template: Template) => void;
+  currentFiles?: VirtualFile[];
 }
 
 const getTemplateSrcDoc = (template: Template): string => {
@@ -295,7 +297,7 @@ const TEMPLATE_TAGS: Record<string, string[]> = {
   "MyCanvasLab & utube.media Hub": ["React", "TypeScript", "Tailwind", "Socket.io", "Zustand", "Framer Motion", "Dashboard", "Analytics", "Interactive", "UI", "Data", "Animations"],
 };
 
-export const Gallery: React.FC<GalleryProps> = ({ onLoadTemplate }) => {
+export const Gallery: React.FC<GalleryProps> = ({ onLoadTemplate, currentFiles = [] }) => {
   const [hoveredTemplate, setHoveredTemplate] = useState<string | null>(null);
   const [activeHoverTemplate, setActiveHoverTemplate] = useState<Template | null>(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
@@ -316,6 +318,24 @@ export const Gallery: React.FC<GalleryProps> = ({ onLoadTemplate }) => {
   const [quickPreviewTemplate, setQuickPreviewTemplate] = useState<Template | null>(null);
   const [quickPreviewSelectedFilePath, setQuickPreviewSelectedFilePath] = useState<string | null>(null);
   const [quickPreviewCopied, setQuickPreviewCopied] = useState<boolean>(false);
+  const [quickPreviewFileSearchQuery, setQuickPreviewFileSearchQuery] = useState<string>("");
+
+  // Advanced Diffing States and Helpers
+  const [detailModalDiff, setDetailModalDiff] = useState<boolean>(false);
+  const [quickPreviewDiff, setQuickPreviewDiff] = useState<boolean>(false);
+
+  const getFileStatus = (filePath: string, templateFiles: VirtualFile[]) => {
+    const currentFile = currentFiles.find((f) => f.path === filePath);
+    if (!currentFile) return "added";
+    const templateFile = templateFiles.find((f) => f.path === filePath);
+    if (!templateFile) return "added";
+    return currentFile.content === templateFile.content ? "unchanged" : "modified";
+  };
+
+  const getDeletedFiles = (templateFiles: VirtualFile[]) => {
+    const templatePaths = new Set(templateFiles.map((f) => f.path));
+    return currentFiles.filter((f) => !templatePaths.has(f.path));
+  };
 
   const toggleCardPreview = (templateName: string) => {
     setActiveCardPreviews((prev) => ({
@@ -652,6 +672,7 @@ export const Gallery: React.FC<GalleryProps> = ({ onLoadTemplate }) => {
                             setQuickPreviewTemplate(template);
                             setQuickPreviewSelectedFilePath(template.files[0]?.path || null);
                             setQuickPreviewCopied(false);
+                            setQuickPreviewFileSearchQuery("");
                           }}
                           className="px-2.5 py-1 bg-purple-900/20 hover:bg-purple-900/30 text-purple-300 hover:text-purple-200 border border-purple-500/25 hover:border-purple-500/40 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1"
                           title="Quick preview file structure and read key files"
@@ -1058,8 +1079,29 @@ export const Gallery: React.FC<GalleryProps> = ({ onLoadTemplate }) => {
                           <Eye className="h-3.5 w-3.5" />
                           <span>* Live Sandbox View</span>
                         </span>
-                        <span className="text-[8px] uppercase tracking-wider px-1 bg-emerald-950/40 border border-emerald-500/20 rounded text-emerald-400 font-sans">
+                        <span className="text-[8px] uppercase tracking-wider px-1.5 py-0.5 bg-emerald-950/40 border border-emerald-500/20 rounded text-emerald-400 font-sans">
                           Active
+                        </span>
+                      </button>
+
+                      {/* Full Workspace Diff Option */}
+                      <button
+                        onClick={() => {
+                          setModalSelectedFilePath("__workspace_diff__");
+                          setDetailModalDiff(false);
+                        }}
+                        className={`w-full flex items-center justify-between p-2 rounded-lg text-[10px] font-mono font-bold transition-all border text-left cursor-pointer ${
+                          modalSelectedFilePath === "__workspace_diff__"
+                            ? "bg-purple-950/20 text-purple-300 border-purple-500/25"
+                            : "bg-transparent text-zinc-400 border-transparent hover:bg-zinc-900/60 hover:text-zinc-300"
+                        }`}
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <GitCompare className="h-3.5 w-3.5 text-pink-400" />
+                          <span>Full Workspace Diff</span>
+                        </span>
+                        <span className="text-[8px] uppercase tracking-wider px-1.5 py-0.5 bg-pink-950/40 border border-pink-500/20 rounded text-pink-400 font-sans">
+                          Report
                         </span>
                       </button>
 
@@ -1067,6 +1109,16 @@ export const Gallery: React.FC<GalleryProps> = ({ onLoadTemplate }) => {
                       {selectedDetailTemplate.files.map((file) => {
                         const isSelected = modalSelectedFilePath === file.path;
                         const ext = file.path.split(".").pop() || "";
+                        const status = getFileStatus(file.path, selectedDetailTemplate.files);
+                        let statusBadge = null;
+                        if (status === "added") {
+                          statusBadge = <span className="text-[7.5px] font-mono font-bold bg-emerald-500/10 text-emerald-400 px-1 py-0.2 rounded border border-emerald-500/20 shrink-0">New</span>;
+                        } else if (status === "modified") {
+                          statusBadge = <span className="text-[7.5px] font-mono font-bold bg-amber-500/10 text-amber-400 px-1 py-0.2 rounded border border-amber-500/20 shrink-0">Diff</span>;
+                        } else {
+                          statusBadge = <span className="text-[7.5px] font-mono text-zinc-600 shrink-0">Same</span>;
+                        }
+
                         return (
                           <button
                             key={file.path}
@@ -1080,13 +1132,16 @@ export const Gallery: React.FC<GalleryProps> = ({ onLoadTemplate }) => {
                                 : "bg-transparent text-zinc-500 border-transparent hover:bg-zinc-900/30 hover:text-zinc-400"
                             }`}
                           >
-                            <span className="flex items-center gap-1.5 truncate">
+                            <span className="flex items-center gap-1.5 truncate mr-1.5">
                               <FileText className={`h-3.5 w-3.5 shrink-0 ${isSelected ? "text-purple-400" : "text-zinc-600"}`} />
                               <span className="truncate">{file.path}</span>
                             </span>
-                            <span className="text-[8px] uppercase tracking-wider font-sans text-zinc-600">
-                              .{ext}
-                            </span>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {statusBadge}
+                              <span className="text-[8px] uppercase tracking-wider font-sans text-zinc-600">
+                                .{ext}
+                              </span>
+                            </div>
                           </button>
                         );
                       })}
@@ -1194,17 +1249,205 @@ export const Gallery: React.FC<GalleryProps> = ({ onLoadTemplate }) => {
                     </>
                   ) : (
                     <>
-                      {/* Code Inspector Header / Control Bar */}
                       {(() => {
+                        if (modalSelectedFilePath === "__workspace_diff__") {
+                          const deletedFiles = getDeletedFiles(selectedDetailTemplate.files);
+                          const addedFiles = selectedDetailTemplate.files.filter(f => getFileStatus(f.path, selectedDetailTemplate.files) === "added");
+                          const modifiedFiles = selectedDetailTemplate.files.filter(f => getFileStatus(f.path, selectedDetailTemplate.files) === "modified");
+                          const unchangedFiles = selectedDetailTemplate.files.filter(f => getFileStatus(f.path, selectedDetailTemplate.files) === "unchanged");
+
+                          return (
+                            <div className="flex-1 overflow-y-auto p-6 bg-[#020402] space-y-6 scrollbar-thin">
+                              <div className="space-y-1.5 border-b border-zinc-900 pb-4">
+                                <h2 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2">
+                                  <GitCompare className="h-4 w-4 text-purple-400" />
+                                  Workspace Diff Report
+                                </h2>
+                                <p className="text-[10px] text-zinc-500 font-sans leading-normal">
+                                  Detailed analysis of how loading this template will modify your current virtual workspace files.
+                                </p>
+                              </div>
+
+                              {/* Stats Grid */}
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono">
+                                <div className="bg-emerald-950/10 border border-emerald-500/20 p-3.5 rounded-xl">
+                                  <span className="text-[8px] font-bold text-emerald-400 uppercase tracking-wider block">Additions</span>
+                                  <div className="text-lg font-bold text-white mt-1">+{addedFiles.length} <span className="text-[9px] font-normal text-zinc-500">files</span></div>
+                                </div>
+                                <div className="bg-amber-950/10 border border-amber-500/20 p-3.5 rounded-xl">
+                                  <span className="text-[8px] font-bold text-amber-400 uppercase tracking-wider block">Modifications</span>
+                                  <div className="text-lg font-bold text-white mt-1">Δ {modifiedFiles.length} <span className="text-[9px] font-normal text-zinc-500 font-sans">files</span></div>
+                                </div>
+                                <div className="bg-red-950/10 border border-red-500/20 p-3.5 rounded-xl">
+                                  <span className="text-[8px] font-bold text-red-400 uppercase tracking-wider block">Deletions</span>
+                                  <div className="text-lg font-bold text-white mt-1 font-mono">-{deletedFiles.length} <span className="text-[9px] font-normal text-zinc-500 font-sans">files</span></div>
+                                </div>
+                                <div className="bg-zinc-900/40 border border-zinc-850 p-3.5 rounded-xl">
+                                  <span className="text-[8px] font-bold text-zinc-500 uppercase tracking-wider block">Unchanged</span>
+                                  <div className="text-lg font-bold text-white mt-1">{unchangedFiles.length} <span className="text-[9px] font-normal text-zinc-500 font-sans">files</span></div>
+                                </div>
+                              </div>
+
+                              {/* Files Breakdown Lists */}
+                              <div className="space-y-4">
+                                {/* Modifications list */}
+                                {modifiedFiles.length > 0 && (
+                                  <div className="space-y-2 bg-zinc-900/20 border border-zinc-850/60 rounded-xl p-4">
+                                    <h3 className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-2">
+                                      <AlertTriangle className="h-3.5 w-3.5" /> Files with local changes (To be modified)
+                                    </h3>
+                                    <div className="space-y-1.5 max-h-[160px] overflow-y-auto scrollbar-thin">
+                                      {modifiedFiles.map(f => (
+                                        <div key={f.path} className="flex items-center justify-between p-2 bg-black/40 rounded border border-zinc-900 text-[11px] font-mono">
+                                          <span className="text-zinc-300 truncate pr-4">{f.path}</span>
+                                          <button
+                                            onClick={() => {
+                                              setModalSelectedFilePath(f.path);
+                                              setDetailModalDiff(true);
+                                            }}
+                                            className="px-2.5 py-1 bg-amber-950/30 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 hover:text-amber-200 rounded text-[9px] font-bold uppercase tracking-wider transition cursor-pointer"
+                                          >
+                                            View Diff
+                                          </button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Additions list */}
+                                {addedFiles.length > 0 && (
+                                  <div className="space-y-2 bg-zinc-900/20 border border-zinc-850/60 rounded-xl p-4">
+                                    <h3 className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-2">
+                                      <span>➕</span> New files to be added
+                                    </h3>
+                                    <div className="space-y-1.5 max-h-[160px] overflow-y-auto scrollbar-thin">
+                                      {addedFiles.map(f => (
+                                        <div key={f.path} className="flex items-center justify-between p-2 bg-black/40 rounded border border-zinc-900 text-[11px] font-mono">
+                                          <span className="text-zinc-300 truncate pr-4">{f.path}</span>
+                                          <button
+                                            onClick={() => {
+                                              setModalSelectedFilePath(f.path);
+                                              setDetailModalDiff(true);
+                                            }}
+                                            className="px-2.5 py-1 bg-emerald-950/30 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 hover:text-emerald-200 rounded text-[9px] font-bold uppercase tracking-wider transition cursor-pointer"
+                                          >
+                                            Inspect Diff
+                                          </button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Deletions list */}
+                                {deletedFiles.length > 0 && (
+                                  <div className="space-y-2 bg-zinc-900/20 border border-zinc-850/60 rounded-xl p-4">
+                                    <h3 className="text-xs font-bold text-red-400 uppercase tracking-wider flex items-center gap-2">
+                                      <span>⚠️</span> Current workspace files to be deleted
+                                    </h3>
+                                    <p className="text-[10px] text-zinc-500 leading-normal font-sans">
+                                      The following files exist in your active workspace but are not part of the template. Loading the template will permanently discard them.
+                                    </p>
+                                    <div className="space-y-1.5 max-h-[160px] overflow-y-auto scrollbar-thin font-mono">
+                                      {deletedFiles.map(f => (
+                                        <div key={f.path} className="flex items-center justify-between p-2 bg-black/40 rounded border border-zinc-900 text-[11px]">
+                                          <span className="text-zinc-400 line-through truncate pr-4">{f.path}</span>
+                                          <span className="text-[9px] bg-red-950/20 text-red-500 border border-red-500/10 px-2 py-0.5 rounded font-bold uppercase shrink-0">To Be Deleted</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Unchanged list */}
+                                {unchangedFiles.length > 0 && (
+                                  <div className="space-y-2 bg-zinc-900/20 border border-zinc-850/40 rounded-xl p-4">
+                                    <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
+                                      <span>✔️</span> Unchanged files (Already identical)
+                                    </h3>
+                                    <div className="space-y-1.5 max-h-[160px] overflow-y-auto scrollbar-thin">
+                                      {unchangedFiles.map(f => (
+                                        <div key={f.path} className="flex items-center justify-between p-2 bg-black/40 rounded border border-zinc-900 text-[11px] font-mono">
+                                          <span className="text-zinc-500 truncate">{f.path}</span>
+                                          <span className="text-[9px] bg-zinc-900 text-zinc-600 px-2 py-0.5 rounded uppercase font-mono shrink-0">Identical</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        }
+
                         const fileObj = selectedDetailTemplate.files.find((f) => f.path === modalSelectedFilePath);
+                        const workspaceFile = currentFiles.find((f) => f.path === modalSelectedFilePath);
+
+                        if (detailModalDiff) {
+                          return (
+                            <>
+                              {/* File Details bar */}
+                              <div className="px-5 py-3 border-b border-zinc-900 bg-zinc-950 flex items-center justify-between flex-shrink-0 select-none">
+                                <div className="flex items-center gap-4 min-w-0">
+                                  <span className="text-xs font-mono font-black text-purple-400 truncate">
+                                    {modalSelectedFilePath}
+                                  </span>
+                                  <div className="flex items-center bg-zinc-900/60 p-0.5 rounded-lg border border-zinc-850 shrink-0">
+                                    <button
+                                      onClick={() => setDetailModalDiff(false)}
+                                      className="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider transition text-zinc-500 hover:text-zinc-350 cursor-pointer"
+                                    >
+                                      Code
+                                    </button>
+                                    <button
+                                      onClick={() => setDetailModalDiff(true)}
+                                      className="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider transition bg-zinc-850 text-purple-400 cursor-pointer"
+                                    >
+                                      Diff View
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <span className="text-[9px] text-zinc-500 font-mono font-bold bg-zinc-900 border border-zinc-850 px-2 py-0.5 rounded-md uppercase shrink-0">
+                                  Comparing with Workspace
+                                </span>
+                              </div>
+
+                              <div className="flex-1 overflow-auto bg-black/95">
+                                <DiffViewer
+                                  filename={modalSelectedFilePath || ""}
+                                  oldContent={workspaceFile?.content || ""}
+                                  newContent={fileObj?.content || ""}
+                                />
+                              </div>
+                            </>
+                          );
+                        }
+
                         return (
                           <>
+                            {/* Code Inspector Header / Control Bar */}
                             <div className="px-5 py-3 border-b border-zinc-900 bg-zinc-950 flex items-center justify-between flex-shrink-0">
-                              <div className="flex items-center gap-2">
-                                <span className="font-mono text-xs font-black text-purple-400">
+                              <div className="flex items-center gap-4 min-w-0">
+                                <span className="font-mono text-xs font-black text-purple-400 truncate">
                                   {modalSelectedFilePath}
                                 </span>
-                                <span className="text-[9px] text-zinc-500 font-mono font-bold bg-zinc-900 border border-zinc-850 px-2 py-0.5 rounded-md uppercase">
+                                <div className="flex items-center bg-zinc-900/60 p-0.5 rounded-lg border border-zinc-850 shrink-0">
+                                  <button
+                                    onClick={() => setDetailModalDiff(false)}
+                                    className="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider transition bg-zinc-850 text-purple-400 cursor-pointer"
+                                  >
+                                    Code
+                                  </button>
+                                  <button
+                                    onClick={() => setDetailModalDiff(true)}
+                                    className="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider transition text-zinc-500 hover:text-zinc-350 cursor-pointer"
+                                  >
+                                    Diff View
+                                  </button>
+                                </div>
+                                <span className="text-[9px] text-zinc-500 font-mono font-bold bg-zinc-900 border border-zinc-850 px-2 py-0.5 rounded-md uppercase hidden sm:inline-block shrink-0">
                                   {fileObj?.content.split("\n").length} Lines
                                 </span>
                               </div>
@@ -1321,34 +1564,113 @@ export const Gallery: React.FC<GalleryProps> = ({ onLoadTemplate }) => {
                       </span>
                     </div>
 
+                    {/* File Search Input inside Quick Preview Modal */}
+                    <div className="relative mb-1 shrink-0">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3 w-3 text-zinc-500" />
+                      <input
+                        type="text"
+                        placeholder="Filter template files..."
+                        value={quickPreviewFileSearchQuery}
+                        id="quick-preview-file-search"
+                        onChange={(e) => setQuickPreviewFileSearchQuery(e.target.value)}
+                        className="w-full bg-black border border-zinc-900 focus:border-purple-500/40 rounded-lg pl-8 pr-7 py-1 text-[10px] text-zinc-300 placeholder-zinc-600 focus:outline-none transition-all font-mono"
+                      />
+                      {quickPreviewFileSearchQuery && (
+                        <button
+                          onClick={() => setQuickPreviewFileSearchQuery("")}
+                          id="clear-quick-preview-file-search-btn"
+                          className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900 rounded-full cursor-pointer"
+                        >
+                          <X className="h-2.5 w-2.5" />
+                        </button>
+                      )}
+                    </div>
+
                     <div className="space-y-1.5 overflow-y-auto flex-1 scrollbar-thin pr-1">
-                      {quickPreviewTemplate.files.map((file) => {
-                        const isSelected = quickPreviewSelectedFilePath === file.path;
-                        const linesCount = file.content.split('\n').length;
-                        
-                        return (
-                          <button
-                            key={file.path}
-                            onClick={() => {
-                              setQuickPreviewSelectedFilePath(file.path);
-                              setQuickPreviewCopied(false);
-                            }}
-                            className={`w-full flex items-center justify-between p-2 rounded-lg text-[10px] font-mono transition-all border text-left cursor-pointer ${
-                              isSelected
-                                ? "bg-purple-950/20 text-purple-300 border-purple-500/25 font-bold"
-                                : "bg-transparent text-zinc-500 border-transparent hover:bg-zinc-900/30 hover:text-zinc-400"
-                            }`}
-                          >
-                            <span className="flex items-center gap-1.5 min-w-0">
-                              <Code className={`h-3.5 w-3.5 shrink-0 ${isSelected ? "text-purple-400" : "text-zinc-600"}`} />
-                              <span className="truncate">{file.path}</span>
-                            </span>
-                            <span className="text-[8px] font-mono text-zinc-600 shrink-0">
-                              {linesCount}L
-                            </span>
-                          </button>
+                      {/* Full Workspace Diff Option */}
+                      <button
+                        onClick={() => {
+                          setQuickPreviewSelectedFilePath("__workspace_diff__");
+                          setQuickPreviewDiff(false);
+                        }}
+                        className={`w-full flex items-center justify-between p-2 rounded-lg text-[10px] font-mono font-bold transition-all border text-left cursor-pointer ${
+                          quickPreviewSelectedFilePath === "__workspace_diff__"
+                            ? "bg-purple-950/20 text-purple-300 border-purple-500/25 font-bold"
+                            : "bg-transparent text-zinc-400 border-transparent hover:bg-zinc-900/60 hover:text-zinc-300"
+                        }`}
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <GitCompare className="h-3.5 w-3.5 text-pink-400" />
+                          <span>Full Workspace Diff</span>
+                        </span>
+                        <span className="text-[8px] uppercase tracking-wider px-1.5 py-0.5 bg-pink-950/40 border border-pink-500/20 rounded text-pink-400 font-sans font-bold">
+                          Report
+                        </span>
+                      </button>
+
+                      {(() => {
+                        const filteredFiles = quickPreviewTemplate.files.filter((file) =>
+                          file.path.toLowerCase().includes(quickPreviewFileSearchQuery.toLowerCase())
                         );
-                      })}
+
+                        if (filteredFiles.length === 0) {
+                          return (
+                            <div className="py-8 text-center text-[10px] text-zinc-600 font-mono">
+                              No matching files
+                            </div>
+                          );
+                        }
+
+                        return filteredFiles.map((file) => {
+                          const isSelected = quickPreviewSelectedFilePath === file.path;
+                          const linesCount = file.content.split('\n').length;
+                          const status = getFileStatus(file.path, quickPreviewTemplate.files);
+                          let statusBadge = null;
+                          if (status === "added") {
+                            statusBadge = <span className="text-[7.5px] font-mono font-bold bg-emerald-500/10 text-emerald-400 px-1 py-0.2 rounded border border-emerald-500/20 shrink-0">New</span>;
+                          } else if (status === "modified") {
+                            statusBadge = <span className="text-[7.5px] font-mono font-bold bg-amber-500/10 text-amber-400 px-1 py-0.2 rounded border border-emerald-500/20 shrink-0">Diff</span>;
+                          } else {
+                            statusBadge = <span className="text-[7.5px] font-mono text-zinc-600 shrink-0">Same</span>;
+                          }
+
+                          const ext = file.path.split('.').pop()?.toLowerCase();
+                          let fileIcon = <Code className={`h-3.5 w-3.5 shrink-0 ${isSelected ? "text-purple-400" : "text-zinc-600"}`} />;
+                          if (ext === 'html') {
+                            fileIcon = <Monitor className={`h-3.5 w-3.5 shrink-0 ${isSelected ? "text-purple-400" : "text-orange-500/80"}`} />;
+                          } else if (ext === 'css') {
+                            fileIcon = <Palette className={`h-3.5 w-3.5 shrink-0 ${isSelected ? "text-purple-400" : "text-teal-500/80"}`} />;
+                          } else if (ext === 'json') {
+                            fileIcon = <FileText className={`h-3.5 w-3.5 shrink-0 ${isSelected ? "text-purple-400" : "text-amber-500/80"}`} />;
+                          }
+
+                          return (
+                            <button
+                              key={file.path}
+                              onClick={() => {
+                                setQuickPreviewSelectedFilePath(file.path);
+                                setQuickPreviewCopied(false);
+                              }}
+                              className={`w-full flex items-center justify-between p-2 rounded-lg text-[10px] font-mono transition-all border text-left cursor-pointer ${
+                                isSelected
+                                  ? "bg-purple-950/20 text-purple-300 border-purple-500/25 font-bold"
+                                  : "bg-transparent text-zinc-500 border-transparent hover:bg-zinc-900/30 hover:text-zinc-400"
+                              }`}
+                            >
+                              <span className="flex items-center gap-1.5 min-w-0 mr-1.5 truncate">
+                                {fileIcon}
+                                <span className="truncate">{file.path}</span>
+                              </span>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                {statusBadge}
+                                <span className="text-[8px] font-mono text-zinc-600 shrink-0">
+                                  {linesCount}L
+                                </span>
+                              </div>
+                            </button>
+                          );
+                        });
+                      })()}
                     </div>
                   </div>
                 </div>
@@ -1356,18 +1678,205 @@ export const Gallery: React.FC<GalleryProps> = ({ onLoadTemplate }) => {
                 {/* Right side: Read-Only Code Viewer with line numbers */}
                 <div className="flex-1 bg-black flex flex-col overflow-hidden">
                   {(() => {
+                    if (quickPreviewSelectedFilePath === "__workspace_diff__") {
+                      const deletedFiles = getDeletedFiles(quickPreviewTemplate.files);
+                      const addedFiles = quickPreviewTemplate.files.filter(f => getFileStatus(f.path, quickPreviewTemplate.files) === "added");
+                      const modifiedFiles = quickPreviewTemplate.files.filter(f => getFileStatus(f.path, quickPreviewTemplate.files) === "modified");
+                      const unchangedFiles = quickPreviewTemplate.files.filter(f => getFileStatus(f.path, quickPreviewTemplate.files) === "unchanged");
+
+                      return (
+                        <div className="flex-1 overflow-y-auto p-6 bg-[#020402] space-y-6 scrollbar-thin text-left">
+                          <div className="space-y-1.5 border-b border-zinc-900 pb-4">
+                            <h2 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2">
+                              <GitCompare className="h-4 w-4 text-purple-400" />
+                              Workspace Diff Report
+                            </h2>
+                            <p className="text-[10px] text-zinc-500 font-sans leading-normal">
+                              Detailed analysis of how loading this template will modify your current virtual workspace files.
+                            </p>
+                          </div>
+
+                          {/* Stats Grid */}
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono">
+                            <div className="bg-emerald-950/10 border border-emerald-500/20 p-3.5 rounded-xl">
+                              <span className="text-[8px] font-bold text-emerald-400 uppercase tracking-wider block">Additions</span>
+                              <div className="text-lg font-bold text-white mt-1">+{addedFiles.length} <span className="text-[9px] font-normal text-zinc-500">files</span></div>
+                            </div>
+                            <div className="bg-amber-950/10 border border-amber-500/20 p-3.5 rounded-xl">
+                              <span className="text-[8px] font-bold text-amber-400 uppercase tracking-wider block">Modifications</span>
+                              <div className="text-lg font-bold text-white mt-1">Δ {modifiedFiles.length} <span className="text-[9px] font-normal text-zinc-500 font-sans">files</span></div>
+                            </div>
+                            <div className="bg-red-950/10 border border-red-500/20 p-3.5 rounded-xl">
+                              <span className="text-[8px] font-bold text-red-400 uppercase tracking-wider block">Deletions</span>
+                              <div className="text-lg font-bold text-white mt-1 font-mono">-{deletedFiles.length} <span className="text-[9px] font-normal text-zinc-500 font-sans">files</span></div>
+                            </div>
+                            <div className="bg-zinc-900/40 border border-zinc-850 p-3.5 rounded-xl">
+                              <span className="text-[8px] font-bold text-zinc-500 uppercase tracking-wider block">Unchanged</span>
+                              <div className="text-lg font-bold text-white mt-1">{unchangedFiles.length} <span className="text-[9px] font-normal text-zinc-500 font-sans">files</span></div>
+                            </div>
+                          </div>
+
+                          {/* Files Breakdown Lists */}
+                          <div className="space-y-4">
+                            {/* Modifications list */}
+                            {modifiedFiles.length > 0 && (
+                              <div className="space-y-2 bg-zinc-900/20 border border-zinc-850/60 rounded-xl p-4">
+                                <h3 className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-2">
+                                  <AlertTriangle className="h-3.5 w-3.5" /> Files with local changes (To be modified)
+                                </h3>
+                                <div className="space-y-1.5 max-h-[160px] overflow-y-auto scrollbar-thin">
+                                  {modifiedFiles.map(f => (
+                                    <div key={f.path} className="flex items-center justify-between p-2 bg-black/40 rounded border border-zinc-900 text-[11px] font-mono">
+                                      <span className="text-zinc-300 truncate pr-4">{f.path}</span>
+                                      <button
+                                        onClick={() => {
+                                          setQuickPreviewSelectedFilePath(f.path);
+                                          setQuickPreviewDiff(true);
+                                        }}
+                                        className="px-2.5 py-1 bg-amber-950/30 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 hover:text-amber-200 rounded text-[9px] font-bold uppercase tracking-wider transition cursor-pointer"
+                                      >
+                                        View Diff
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Additions list */}
+                            {addedFiles.length > 0 && (
+                              <div className="space-y-2 bg-zinc-900/20 border border-zinc-850/60 rounded-xl p-4">
+                                <h3 className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-2">
+                                  <span>➕</span> New files to be added
+                                </h3>
+                                <div className="space-y-1.5 max-h-[160px] overflow-y-auto scrollbar-thin font-mono">
+                                  {addedFiles.map(f => (
+                                    <div key={f.path} className="flex items-center justify-between p-2 bg-black/40 rounded border border-zinc-900 text-[11px]">
+                                      <span className="text-zinc-300 truncate pr-4">{f.path}</span>
+                                      <button
+                                        onClick={() => {
+                                          setQuickPreviewSelectedFilePath(f.path);
+                                          setQuickPreviewDiff(true);
+                                        }}
+                                        className="px-2.5 py-1 bg-emerald-950/30 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 hover:text-emerald-200 rounded text-[9px] font-bold uppercase tracking-wider transition cursor-pointer"
+                                      >
+                                        Inspect Diff
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Deletions list */}
+                            {deletedFiles.length > 0 && (
+                              <div className="space-y-2 bg-zinc-900/20 border border-zinc-850/60 rounded-xl p-4">
+                                <h3 className="text-xs font-bold text-red-400 uppercase tracking-wider flex items-center gap-2">
+                                  <span>⚠️</span> Current workspace files to be deleted
+                                </h3>
+                                <p className="text-[10px] text-zinc-500 leading-normal font-sans">
+                                  The following files exist in your active workspace but are not part of the template. Loading the template will permanently discard them.
+                                </p>
+                                <div className="space-y-1.5 max-h-[160px] overflow-y-auto scrollbar-thin font-mono">
+                                  {deletedFiles.map(f => (
+                                    <div key={f.path} className="flex items-center justify-between p-2 bg-black/40 rounded border border-zinc-900 text-[11px]">
+                                      <span className="text-zinc-400 line-through truncate pr-4">{f.path}</span>
+                                      <span className="text-[9px] bg-red-950/20 text-red-500 border border-red-500/10 px-2 py-0.5 rounded font-bold uppercase shrink-0">To Be Deleted</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Unchanged list */}
+                            {unchangedFiles.length > 0 && (
+                              <div className="space-y-2 bg-zinc-900/20 border border-zinc-850/40 rounded-xl p-4">
+                                <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
+                                  <span>✔️</span> Unchanged files (Already identical)
+                                </h3>
+                                <div className="space-y-1.5 max-h-[160px] overflow-y-auto scrollbar-thin">
+                                  {unchangedFiles.map(f => (
+                                    <div key={f.path} className="flex items-center justify-between p-2 bg-black/40 rounded border border-zinc-900 text-[11px] font-mono">
+                                      <span className="text-zinc-500 truncate">{f.path}</span>
+                                      <span className="text-[9px] bg-zinc-900 text-zinc-600 px-2 py-0.5 rounded uppercase font-mono shrink-0">Identical</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    }
+
                     const activeFile = quickPreviewTemplate.files.find(f => f.path === quickPreviewSelectedFilePath);
+                    const workspaceFile = currentFiles.find(f => f.path === quickPreviewSelectedFilePath);
                     const fileContent = activeFile?.content || "// No content";
                     const lines = fileContent.split('\n');
+
+                    if (quickPreviewDiff) {
+                      return (
+                        <>
+                          {/* File details bar */}
+                          <div className="px-5 py-3 border-b border-zinc-900 bg-zinc-950 flex items-center justify-between flex-shrink-0 select-none">
+                            <div className="flex items-center gap-4 min-w-0">
+                              <span className="text-xs font-mono font-bold text-purple-400 truncate">
+                                {quickPreviewSelectedFilePath}
+                              </span>
+                              <div className="flex items-center bg-zinc-900/60 p-0.5 rounded-lg border border-zinc-850 shrink-0">
+                                <button
+                                  onClick={() => setQuickPreviewDiff(false)}
+                                  className="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider transition text-zinc-500 hover:text-zinc-300 cursor-pointer"
+                                >
+                                  Code
+                                </button>
+                                <button
+                                  onClick={() => setQuickPreviewDiff(true)}
+                                  className="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider transition bg-zinc-850 text-purple-400 cursor-pointer"
+                                >
+                                  Diff View
+                                </button>
+                              </div>
+                            </div>
+
+                            <span className="text-[9px] text-zinc-500 font-mono font-bold bg-zinc-900 border border-zinc-850 px-2 py-0.5 rounded-md uppercase shrink-0">
+                              Comparing with Workspace
+                            </span>
+                          </div>
+
+                          <div className="flex-1 overflow-auto bg-black/95">
+                            <DiffViewer
+                              filename={quickPreviewSelectedFilePath || ""}
+                              oldContent={workspaceFile?.content || ""}
+                              newContent={activeFile?.content || ""}
+                            />
+                          </div>
+                        </>
+                      );
+                    }
                     
                     return (
                       <>
                         {/* File details bar */}
                         <div className="px-5 py-3 border-b border-zinc-900 bg-zinc-950 flex items-center justify-between flex-shrink-0 select-none">
-                          <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="flex items-center gap-4 min-w-0">
                             <span className="text-xs font-mono font-bold text-purple-400 truncate">
                               {quickPreviewSelectedFilePath}
                             </span>
+                            <div className="flex items-center bg-zinc-900/60 p-0.5 rounded-lg border border-zinc-850 shrink-0">
+                              <button
+                                onClick={() => setQuickPreviewDiff(false)}
+                                className="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider transition bg-zinc-850 text-purple-400 cursor-pointer"
+                              >
+                                Code
+                              </button>
+                              <button
+                                onClick={() => setQuickPreviewDiff(true)}
+                                className="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider transition text-zinc-500 hover:text-zinc-300 cursor-pointer"
+                              >
+                                Diff View
+                              </button>
+                            </div>
                             <span className="text-[8px] uppercase tracking-wider font-mono text-zinc-500 border border-zinc-900 px-1.5 py-0.5 rounded bg-zinc-900/40 shrink-0">
                               {lines.length} Lines
                             </span>
@@ -1398,7 +1907,7 @@ export const Gallery: React.FC<GalleryProps> = ({ onLoadTemplate }) => {
                         </div>
 
                         {/* Read-Only Code Panel with custom line numbers */}
-                        <div className="flex-1 overflow-auto p-5 bg-black/95 font-mono text-[11px] select-text selection:bg-purple-900/30 selection:text-purple-200 scrollbar-thin">
+                        <div className="flex-1 overflow-auto p-5 bg-black/95 font-mono text-[11px] select-text selection:bg-purple-900/30 selection:text-purple-200 scrollbar-thin text-left">
                           <div className="flex leading-relaxed min-w-full">
                             {/* Numbers Column */}
                             <div className="text-zinc-600 text-right pr-4 select-none border-r border-zinc-900 mr-4 text-[10px] w-8 shrink-0">

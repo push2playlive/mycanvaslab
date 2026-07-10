@@ -1025,7 +1025,7 @@ export default function App() {
 
         {activeTab === "gallery" && (
           <div className="flex-1 overflow-hidden bg-[#020402]">
-            <Gallery onLoadTemplate={handleLoadTemplate} />
+            <Gallery onLoadTemplate={handleLoadTemplate} currentFiles={files} />
           </div>
         )}
 

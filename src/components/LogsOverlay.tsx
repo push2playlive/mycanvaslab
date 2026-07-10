@@ -144,61 +144,22 @@ export const LogsOverlay: React.FC<LogsOverlayProps> = ({ logs, onClear }) => {
 
         {/* Action Controls & Filters in Header when open or closed */}
         <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
-          {isOpen && (
-            <div className="flex items-center gap-3">
-              {/* Type Filter Toggles */}
-              <div className="hidden md:flex items-center bg-black/60 p-0.5 rounded-lg border border-zinc-900 text-[9px] font-bold">
-                {(["all", "log", "warn", "error"] as const).map((type) => {
-                  const isActive = filterType === type;
-                  return (
-                    <button
-                      key={type}
-                      onClick={() => setFilterType(type)}
-                      className={`px-2 py-0.5 rounded uppercase tracking-wider transition-all cursor-pointer ${
-                        isActive
-                          ? type === "error"
-                            ? "bg-red-500/15 text-red-400 border border-red-500/30"
-                            : type === "warn"
-                            ? "bg-yellow-500/15 text-yellow-400 border border-yellow-500/30"
-                            : "bg-[#1ae854]/10 text-[#1ae854] border border-[#1ae854]/20"
-                          : "text-zinc-500 hover:text-zinc-300 border border-transparent"
-                      }`}
-                    >
-                      {type === "all" ? "All" : type === "log" ? "Logs" : type === "warn" ? "Warnings" : "Errors"}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Inline Search Filter */}
-              <div className="relative max-w-[140px] md:max-w-[200px]">
-                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-zinc-600" />
-                <input
-                  type="text"
-                  placeholder="Filter outputs..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-black/80 border border-zinc-900 focus:border-[#1ae854]/40 rounded-md pl-7 pr-2 py-0.5 text-[10px] text-zinc-300 placeholder-zinc-700 focus:outline-none transition-all font-sans"
-                />
-              </div>
-
-              {/* Clear Button */}
-              {logs.length > 0 && (
-                <button
-                  onClick={onClear}
-                  className="p-1 hover:bg-zinc-900 text-zinc-500 hover:text-red-400 rounded border border-transparent hover:border-zinc-800 transition cursor-pointer flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider px-2"
-                  title="Clear Console History"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Clear</span>
-                </button>
-              )}
-            </div>
+          {logs.length > 0 && (
+            <button
+              onClick={onClear}
+              id="header-clear-logs-btn"
+              className="p-1 hover:bg-zinc-900 text-zinc-500 hover:text-red-400 rounded border border-transparent hover:border-zinc-800 transition cursor-pointer flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2"
+              title="Clear Console History"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Clear</span>
+            </button>
           )}
 
           {/* Toggle Button */}
           <button
             onClick={() => setIsOpen(!isOpen)}
+            id="header-console-toggle-btn"
             className="p-1 hover:bg-zinc-900 text-zinc-400 hover:text-white rounded border border-transparent hover:border-zinc-800 transition cursor-pointer"
             title={isOpen ? "Collapse Panel" : "Expand Console Panel"}
           >
@@ -212,11 +173,99 @@ export const LogsOverlay: React.FC<LogsOverlayProps> = ({ logs, onClear }) => {
         {isOpen && (
           <motion.div
             initial={{ height: 0 }}
-            animate={{ height: "240px" }}
+            animate={{ height: "320px" }}
             exit={{ height: 0 }}
             transition={{ type: "spring", stiffness: 300, damping: 28 }}
             className="w-full flex flex-col bg-[#030403] border-t border-zinc-900 overflow-hidden"
           >
+            {/* Toolbar for Search & Filters */}
+            <div className="px-4 py-2.5 bg-[#0a0c0a] border-b border-zinc-900/80 flex flex-col md:flex-row items-stretch md:items-center gap-3 select-none">
+              {/* Search input with search icon and clear button */}
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-500" />
+                <input
+                  type="text"
+                  placeholder="Search logs by text content or code..."
+                  value={searchQuery}
+                  id="log-search-input"
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-black border border-zinc-850 hover:border-zinc-800 focus:border-[#1ae854]/40 rounded-lg pl-9 pr-8 py-1.5 text-[11px] font-mono text-zinc-100 placeholder-zinc-600 focus:outline-none transition-all focus:ring-1 focus:ring-[#1ae854]/20"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    id="clear-search-query-btn"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900 cursor-pointer"
+                    title="Clear Search"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+
+              {/* Severity Toggles / Filters */}
+              <div className="flex items-center gap-1.5 shrink-0 overflow-x-auto scrollbar-none py-0.5">
+                {(["all", "log", "warn", "error"] as const).map((type) => {
+                  const isActive = filterType === type;
+                  const count =
+                    type === "all"
+                      ? logs.length
+                      : type === "log"
+                      ? logs.filter((l) => l.logType === "log" || l.logType === "info").length
+                      : type === "warn"
+                      ? warnCount
+                      : errorCount;
+
+                  const getSeverityStyle = () => {
+                    if (!isActive) return "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900/60 border-zinc-900 hover:border-zinc-850";
+                    switch (type) {
+                      case "error":
+                        return "bg-red-500/10 text-red-400 border-red-500/30 font-bold shadow-[0_0_10px_rgba(239,68,68,0.1)]";
+                      case "warn":
+                        return "bg-yellow-500/10 text-yellow-400 border-yellow-500/30 font-bold shadow-[0_0_10px_rgba(234,179,8,0.1)]";
+                      case "log":
+                        return "bg-blue-500/10 text-blue-400 border-blue-500/30 font-bold shadow-[0_0_10px_rgba(59,130,246,0.1)]";
+                      default:
+                        return "bg-emerald-500/10 text-[#1ae854] border-[#1ae854]/25 font-bold shadow-[0_0_10px_rgba(26,232,84,0.1)]";
+                    }
+                  };
+
+                  return (
+                    <button
+                      key={type}
+                      id={`severity-filter-${type}`}
+                      onClick={() => setFilterType(type)}
+                      className={`px-3 py-1 rounded-md text-[10px] font-bold font-mono uppercase tracking-wider transition-all border cursor-pointer flex items-center gap-1.5 shrink-0 ${getSeverityStyle()}`}
+                    >
+                      <span className="flex items-center gap-1">
+                        {type === "all" && <span className="w-1.5 h-1.5 rounded-full bg-zinc-400" />}
+                        {type === "log" && <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse-soft" />}
+                        {type === "warn" && <span className="w-1.5 h-1.5 rounded-full bg-yellow-400" />}
+                        {type === "error" && <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />}
+                        {type === "all" ? "All" : type === "log" ? "Info" : type === "warn" ? "Warns" : "Errors"}
+                      </span>
+                      <span className="text-[9px] opacity-70 px-1 py-0.2 bg-black/40 rounded border border-zinc-900/30">
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+
+                {/* Inline Clear Button */}
+                {logs.length > 0 && (
+                  <button
+                    onClick={onClear}
+                    id="toolbar-clear-logs-btn"
+                    className="ml-2 px-3 py-1 bg-zinc-900/40 hover:bg-red-950/20 text-zinc-500 hover:text-red-400 rounded-md border border-zinc-850 hover:border-red-500/25 transition-all cursor-pointer flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider shrink-0"
+                    title="Clear Sandbox Console Output"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Clear</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
             {/* Scrollable console area */}
             <div className="flex-1 overflow-y-auto p-4 space-y-1.5 scrollbar-thin font-mono select-text text-left">
               {filteredLogs.length === 0 ? (
