@@ -202,9 +202,36 @@ export default function App() {
   const [showShareModal, setShowShareModal] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
 
-  // Sync virtual files to localstorage
+  const isFirstRender = React.useRef(true);
+  const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | null>("saved");
+
+  // Sync virtual files to localstorage (debounced for performance and 60fps typing)
   useEffect(() => {
-    localStorage.setItem("virtual_workspace_files", JSON.stringify(files));
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+
+    setSaveStatus("saving");
+
+    const timer = setTimeout(() => {
+      localStorage.setItem("virtual_workspace_files", JSON.stringify(files));
+      setSaveStatus("saved");
+      console.log("[MyCanvasLab] Auto-saved workspace files to localStorage.");
+    }, 5000);
+
+    return () => clearTimeout(timer);
+  }, [files]);
+
+  // Sync files immediately on beforeunload to prevent data loss on accidental refreshes/navigation
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      localStorage.setItem("virtual_workspace_files", JSON.stringify(files));
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
   }, [files]);
 
   // Sync snapshots to localstorage
@@ -406,6 +433,7 @@ export default function App() {
 
   const handleSaveFile = () => {
     localStorage.setItem("virtual_workspace_files", JSON.stringify(files));
+    setSaveStatus("saved");
     console.log("[MyCanvasLab] Saved file checkpoint triggered.");
   };
 
@@ -683,6 +711,25 @@ export default function App() {
             showExplorer={showExplorer}
             showAIChat={showAIChat}
           />
+          {saveStatus && (
+            <span className={`hidden sm:flex items-center gap-1.5 px-2 py-1 rounded border transition-all duration-300 ${
+              saveStatus === "saving"
+                ? "bg-amber-500/10 border-amber-500/25 text-amber-400"
+                : "bg-emerald-500/10 border-emerald-500/25 text-[#1ae854]"
+            }`}>
+              {saveStatus === "saving" ? (
+                <>
+                  <RefreshCw className="h-3 w-3 animate-spin text-amber-400" />
+                  <span className="uppercase tracking-wider font-bold text-[9px]">Autosaving...</span>
+                </>
+              ) : (
+                <>
+                  <CheckSquare className="h-3 w-3 text-[#1ae854]" />
+                  <span className="uppercase tracking-wider font-bold text-[9px]">Saved</span>
+                </>
+              )}
+            </span>
+          )}
           <span className="hidden sm:flex items-center gap-1.5 bg-[#1ae854]/10 border border-[#1ae854]/25 px-2 py-1 rounded">
             <span className="w-1.5 h-1.5 rounded-full bg-[#1ae854] animate-pulse"></span>
             PORT 3000 ACTIVE
