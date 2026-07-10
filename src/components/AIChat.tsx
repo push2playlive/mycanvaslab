@@ -1132,9 +1132,9 @@ Let's begin writing the application code based on this finalized specifications 
                     PROPOSED COMPILER ADJUSTMENTS ({msg.pendingFiles.length})
                   </span>
                   <div className="flex flex-wrap gap-1 pb-1">
-                    {msg.pendingFiles.map((pf) => (
+                    {msg.pendingFiles.map((pf, idx) => (
                       <span
-                        key={pf.path}
+                        key={`${pf.path || "file"}-${idx}`}
                         className="text-[9px] font-mono bg-black border border-[#1ae854]/15 text-zinc-400 px-1.5 py-0.5 rounded"
                       >
                         {pf.path}

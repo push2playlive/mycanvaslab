@@ -88,7 +88,7 @@ export const CompareModal: React.FC<CompareModalProps> = ({
                   const isActive = idx === activeProposalIndex;
                   return (
                     <button
-                      key={file.path}
+                      key={`${file.path || "file"}-${idx}`}
                       onClick={() => setActiveProposalIndex(idx)}
                       className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-2 truncate transition-colors ${
                         isActive

@@ -593,13 +593,17 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   const fuzzyMatch = (path: string, query: string) => {
     if (!query) return true;
     const cleanQuery = query.trim().toLowerCase();
+    const parts = path.split("/");
+    const fileName = parts[parts.length - 1].toLowerCase();
     const cleanPath = path.toLowerCase();
     
+    // Check if filename itself or path contains the query
+    if (fileName.includes(cleanQuery)) return true;
     if (cleanPath.includes(cleanQuery)) return true;
     
     let queryIdx = 0;
-    for (let i = 0; i < cleanPath.length; i++) {
-      if (cleanPath[i] === cleanQuery[queryIdx]) {
+    for (let i = 0; i < fileName.length; i++) {
+      if (fileName[i] === cleanQuery[queryIdx]) {
         queryIdx++;
         if (queryIdx === cleanQuery.length) return true;
       }
@@ -674,7 +678,8 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-500" />
           <input
             type="text"
-            placeholder="Fuzzy filter files..."
+            id="file-search-input"
+            placeholder="Search files by name..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full bg-[#0a0a0b] border border-zinc-800 focus:border-purple-500/50 rounded-lg pl-8 pr-7 py-1 text-[11px] font-mono text-zinc-300 placeholder-zinc-600 focus:outline-none transition-all"

@@ -203,12 +203,12 @@ export const VersionControl: React.FC<VersionControlProps> = ({
                   FILES IN THIS SNAPSHOT
                 </p>
                 <div className="divide-y divide-zinc-850 border border-zinc-850 rounded-lg overflow-hidden bg-zinc-950/20">
-                  {selectedSnapshot.files.map((file) => {
+                  {selectedSnapshot.files.map((file, idx) => {
                     const currentFile = files.find((f) => f.path === file.path);
                     const isChanged = currentFile?.content !== file.content;
 
                     return (
-                      <div key={file.path} className="px-4 py-2.5 flex items-center justify-between text-xs">
+                      <div key={`${file.path || "file"}-${idx}`} className="px-4 py-2.5 flex items-center justify-between text-xs">
                         <span className="font-mono text-zinc-300 truncate max-w-[250px]">{file.path}</span>
                         <div className="flex items-center gap-3">
                           {isChanged ? (

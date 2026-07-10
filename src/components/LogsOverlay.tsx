@@ -55,19 +55,20 @@ export const LogsOverlay: React.FC<LogsOverlayProps> = ({ logs, onClear }) => {
       case "error":
         return {
           bg: "bg-red-500/5 hover:bg-red-500/10 border-red-500/20 text-red-400",
-          badge: "bg-red-500/25 text-red-300 border border-red-500/30",
+          badge: "bg-red-600 text-white font-extrabold border border-red-500/30 shadow-sm",
           icon: <XCircle className="h-3.5 w-3.5 text-red-500 flex-shrink-0 mt-0.5" />,
         };
       case "warn":
         return {
-          bg: "bg-yellow-500/5 hover:bg-yellow-500/10 border-yellow-500/20 text-yellow-400",
-          badge: "bg-yellow-500/20 text-yellow-300 border border-yellow-500/35",
-          icon: <AlertTriangle className="h-3.5 w-3.5 text-yellow-500 flex-shrink-0 mt-0.5" />,
+          bg: "bg-amber-500/5 hover:bg-amber-500/10 border-amber-500/20 text-amber-400",
+          badge: "bg-amber-500 text-zinc-950 font-extrabold border border-amber-400/30 shadow-sm",
+          icon: <AlertTriangle className="h-3.5 w-3.5 text-amber-500 flex-shrink-0 mt-0.5" />,
         };
       case "info":
+      case "log":
         return {
           bg: "bg-blue-500/5 hover:bg-blue-500/10 border-blue-500/10 text-blue-400",
-          badge: "bg-blue-500/15 text-blue-300 border border-blue-500/20",
+          badge: "bg-blue-600 text-white font-extrabold border border-blue-500/20 shadow-sm",
           icon: <Info className="h-3.5 w-3.5 text-blue-500 flex-shrink-0 mt-0.5" />,
         };
       default:
@@ -216,13 +217,13 @@ export const LogsOverlay: React.FC<LogsOverlayProps> = ({ logs, onClear }) => {
                       ? warnCount
                       : errorCount;
 
-                  const getSeverityStyle = () => {
+                   const getSeverityStyle = () => {
                     if (!isActive) return "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900/60 border-zinc-900 hover:border-zinc-850";
                     switch (type) {
                       case "error":
                         return "bg-red-500/10 text-red-400 border-red-500/30 font-bold shadow-[0_0_10px_rgba(239,68,68,0.1)]";
                       case "warn":
-                        return "bg-yellow-500/10 text-yellow-400 border-yellow-500/30 font-bold shadow-[0_0_10px_rgba(234,179,8,0.1)]";
+                        return "bg-amber-500/10 text-amber-400 border-amber-500/30 font-bold shadow-[0_0_10px_rgba(245,158,11,0.1)]";
                       case "log":
                         return "bg-blue-500/10 text-blue-400 border-blue-500/30 font-bold shadow-[0_0_10px_rgba(59,130,246,0.1)]";
                       default:
@@ -240,7 +241,7 @@ export const LogsOverlay: React.FC<LogsOverlayProps> = ({ logs, onClear }) => {
                       <span className="flex items-center gap-1">
                         {type === "all" && <span className="w-1.5 h-1.5 rounded-full bg-zinc-400" />}
                         {type === "log" && <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse-soft" />}
-                        {type === "warn" && <span className="w-1.5 h-1.5 rounded-full bg-yellow-400" />}
+                        {type === "warn" && <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />}
                         {type === "error" && <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />}
                         {type === "all" ? "All" : type === "log" ? "Info" : type === "warn" ? "Warns" : "Errors"}
                       </span>
